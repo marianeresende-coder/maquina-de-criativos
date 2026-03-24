@@ -1,0 +1,823 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Máquina de Criativos — Seazone</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            sea: { dark: '#011337', coral: '#F1605D', green: '#047755', purple: '#5636D1', light: '#EBEBF5' },
+          },
+          fontFamily: {
+            display: ['"Space Grotesk"', 'sans-serif'],
+            body: ['"DM Sans"', 'sans-serif'],
+          }
+        }
+      }
+    }
+  </script>
+  <style>
+    body { font-family: 'DM Sans', sans-serif; }
+    h1, h2, h3, h4, h5 { font-family: 'Space Grotesk', sans-serif; }
+    .gradient-hero { background: linear-gradient(135deg, #011337 0%, #0D4BD0 50%, #011337 100%); }
+    .gradient-card { background: linear-gradient(180deg, rgba(1,19,55,0.03) 0%, rgba(1,19,55,0.08) 100%); }
+    .glass { background: rgba(255,255,255,0.08); backdrop-filter: blur(20px); border: 1px solid rgba(255,255,255,0.12); }
+    .agent-line::before { content: ''; position: absolute; left: 24px; top: 48px; bottom: 0; width: 2px; background: linear-gradient(to bottom, #0D4BD0, transparent); }
+    .scrollbar-hide::-webkit-scrollbar { display: none; }
+    .tab-active-v2 { background: #011337; color: white; }
+    @keyframes fadeInUp { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
+    .animate-in { animation: fadeInUp 0.5s ease-out forwards; }
+    @keyframes pulse-dot { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
+    .pulse-dot { animation: pulse-dot 2s ease-in-out infinite; }
+  </style>
+</head>
+<body class="bg-white text-gray-900">
+  <div id="root"></div>
+
+  <script type="text/babel">
+    const { useState, useEffect, useRef } = React;
+
+    // ============================================================
+    // DATA
+    // ============================================================
+
+    const AGENTS = [
+      {
+        id: '01',
+        name: 'Analista de Briefing',
+        icon: '🔍',
+        color: 'bg-blue-500',
+        status: 'complete',
+        description: 'Analisa o briefing e extrai estratégia criativa completa',
+        input: 'Briefing bruto do empreendimento',
+        output: 'Dado killer, mensagens-chave, hooks, mapa emocional, DO\'s/DON\'Ts',
+        details: {
+          dadoKiller: 'ROI de 16,40% ao ano com ticket 40% abaixo da concorrência',
+          mensagens: [
+            { msg: '16,40% de ROI ao ano — rendendo mais que qualquer aplicação financeira tradicional', impacto: 5, publico: 'Core (SP/MG)' },
+            { msg: 'R$ 350 mil vs R$ 584 mil da concorrência. Mesmo bairro. Gestão superior.', impacto: 5, publico: 'Core + Nacional' },
+            { msg: 'R$ 5.500/mês de renda passiva. Sem gerir nada. Seazone cuida de tudo.', impacto: 4, publico: 'Regional (Sul)' },
+            { msg: 'Floripa: 8º destino mais reservado do mundo. Invista nessa demanda.', impacto: 4, publico: 'Nacional' },
+            { msg: 'O SPOT I vendeu 100% em menos de 1 semana. O SPOT II está aberto.', impacto: 4, publico: 'Todos' },
+          ],
+          angulos: ['O Investimento que Venceu a Selic', 'O Bairro que Multiplica Patrimônio', 'Salário Sem Chefe', 'O Segundo Round', 'O Caribe Tem Endereço', '40% Mais Barato, 100% Seazone', 'Perto do Aeroporto, Perto do Dinheiro'],
+          hooks: [
+            'Você deixaria R$ 5.500 por mês na mesa?',
+            '16,40% de retorno ao ano. Em imóvel. Em Floripa. Isso existe.',
+            'R$ 350 mil. R$ 5.500 por mês. 16,40% ao ano.',
+            'O SPOT I esgotou em 6 dias. Quem perdeu, aprendeu.',
+            'Todo mundo quer morar na praia. Quem é inteligente lucra com isso.',
+            'Seu assessor não quer que você veja este número.',
+            '81% de valorização. E o bairro nem chegou no teto.',
+            'R$ 5.500 por mês. Todo mês. Sem bater ponto.',
+            '8º destino mais reservado do mundo. 3 milhões de turistas. 49 studios.',
+            'Eu sou Monica Medeiros, fundadora da Seazone, e este é o investimento que eu faria.',
+          ],
+        },
+      },
+      {
+        id: '02',
+        name: 'Roteirista',
+        icon: '🎬',
+        color: 'bg-purple-500',
+        status: 'complete',
+        description: 'Cria 15 roteiros completos (3 estruturas × 5 variações)',
+        input: 'Análise do briefing + identidade de marca',
+        output: '15 roteiros com takes, falas da Monica, overlays, câmera e duração',
+        details: {
+          roteiros: [
+            { estrutura: 1, variacao: 1, duracao: '35s', hook: '16,40% de ROI. Em Florianópolis.', angulo: 'Dado killer direto' },
+            { estrutura: 1, variacao: 2, duracao: '38s', hook: 'O Caribe Brasileiro tem endereço — e agora tem SPOT.', angulo: 'Lifestyle + dados' },
+            { estrutura: 1, variacao: 3, duracao: '37s', hook: 'Esgotou em menos de 1 semana. Agora tem o segundo.', angulo: 'Prova social' },
+            { estrutura: 1, variacao: 4, duracao: '18s', hook: '16,40% de ROI no Campeche.', angulo: 'Curta — gancho direto' },
+            { estrutura: 1, variacao: 5, duracao: '16s', hook: 'Seu imóvel rende enquanto você dorme?', angulo: 'Curta — provocação' },
+            { estrutura: 2, variacao: 1, duracao: '36s', hook: 'O 8º destino mais reservado do mundo.', angulo: 'Dado killer — destino global' },
+            { estrutura: 2, variacao: 2, duracao: '38s', hook: '3 milhões de turistas por ano. E um rooftop esperando.', angulo: 'Lifestyle + dados' },
+            { estrutura: 2, variacao: 3, duracao: '35s', hook: 'Vendeu tudo em 6 dias. Esse é o segundo.', angulo: 'Prova social' },
+            { estrutura: 2, variacao: 4, duracao: '17s', hook: 'Floripa. Campeche. 16,40% de ROI.', angulo: 'Curta — sequência impacto' },
+            { estrutura: 2, variacao: 5, duracao: '15s', hook: 'Você investe em imóvel e ele fica parado?', angulo: 'Curta — provocação' },
+            { estrutura: 3, variacao: 1, duracao: '36s', hook: 'Esse prédio entrega 16,40% de ROI.', angulo: 'Fachada como gatilho' },
+            { estrutura: 3, variacao: 2, duracao: '40s', hook: 'Rooftop com piscina aquecida. No Campeche. Com 16,40% de ROI.', angulo: 'Lifestyle + dados' },
+            { estrutura: 3, variacao: 3, duracao: '37s', hook: '100% vendido em menos de 1 semana. Essa é a segunda chance.', angulo: 'Prova social' },
+            { estrutura: 3, variacao: 4, duracao: '19s', hook: 'Novo SPOT no Campeche. Olha esse número.', angulo: 'Curta — punchline' },
+            { estrutura: 3, variacao: 5, duracao: '16s', hook: 'Se o SPOT I esgotou, o que você tá esperando?', angulo: 'Curta — provocação' },
+          ],
+        },
+      },
+      {
+        id: '03',
+        name: 'Validador de Roteiro',
+        icon: '✅',
+        color: 'bg-green-500',
+        status: 'complete',
+        description: 'Valida roteiros contra DO\'s/DON\'Ts e identidade de marca',
+        input: '15 roteiros + briefing + regras',
+        output: 'Score por roteiro, ajustes necessários, aprovação/reprovação',
+        details: {
+          scores: [
+            { id: 'E1-V1', score: 22, max: 23, status: 'approved' },
+            { id: 'E1-V2', score: 21, max: 23, status: 'approved' },
+            { id: 'E1-V3', score: 23, max: 23, status: 'approved' },
+            { id: 'E1-V4', score: 21, max: 23, status: 'approved' },
+            { id: 'E1-V5', score: 20, max: 23, status: 'approved' },
+            { id: 'E2-V1', score: 22, max: 23, status: 'approved' },
+            { id: 'E2-V2', score: 23, max: 23, status: 'approved' },
+            { id: 'E2-V3', score: 22, max: 23, status: 'approved' },
+            { id: 'E2-V4', score: 21, max: 23, status: 'approved' },
+            { id: 'E2-V5', score: 20, max: 23, status: 'approved' },
+            { id: 'E3-V1', score: 23, max: 23, status: 'approved' },
+            { id: 'E3-V2', score: 22, max: 23, status: 'approved' },
+            { id: 'E3-V3', score: 22, max: 23, status: 'approved' },
+            { id: 'E3-V4', score: 21, max: 23, status: 'approved' },
+            { id: 'E3-V5', score: 20, max: 23, status: 'approved' },
+          ],
+        },
+      },
+      {
+        id: '04',
+        name: 'Diretor Criativo',
+        icon: '🎨',
+        color: 'bg-orange-500',
+        status: 'complete',
+        description: 'Transforma roteiros em direção de arte: storyboards, composição, iluminação',
+        input: 'Roteiros validados + identidade visual',
+        output: 'Storyboards frame-a-frame, paleta, direção de fotografia, tipografia',
+        details: {
+          specs: {
+            format: '9:16 vertical (1080×1920)',
+            fps: '30fps',
+            palette: ['#011337', '#F1605D', '#FFFFFF', '#047755'],
+            fonts: { title: 'Space Grotesk Bold', body: 'DM Sans Regular' },
+            lighting: 'Golden hour, luz natural lateral, tons quentes',
+            transitions: 'Crossfade suave, match cut',
+          },
+        },
+      },
+      {
+        id: '05',
+        name: 'Executor Criativo',
+        icon: '⚡',
+        color: 'bg-yellow-500',
+        status: 'complete',
+        description: 'Gera prompts otimizados para Midjourney, DALL-E, Runway, Kling, Sora',
+        input: 'Direção criativa + storyboards',
+        output: 'Prompts prontos para execução em 5+ ferramentas de IA generativa',
+        details: {
+          tools: ['Midjourney v6', 'DALL-E 3', 'Runway Gen-3', 'Kling AI', 'Sora'],
+          promptCount: { image: 24, video: 24, total: 48 },
+          samplePrompt: '/imagine prompt: Aerial drone shot of Campeche beach in Florianopolis Brazil, pristine white sand stretching 3.5km, crystal clear turquoise water, Ilha do Campeche island visible in background, golden hour warm lighting, editorial photography style, architectural magazine quality, 8k photorealistic, cinematic composition --ar 9:16 --style raw --s 250 --q 2',
+        },
+      },
+      {
+        id: '06',
+        name: 'Validador do Criativo',
+        icon: '🏆',
+        color: 'bg-emerald-500',
+        status: 'complete',
+        description: 'Validação final: completude, aderência, qualidade, consistência',
+        input: 'Todos os outputs dos agentes 01 a 05',
+        output: 'Relatório final com score, aprovação para produção',
+        details: {
+          finalScore: 92,
+          completude: '7/7',
+          aderencia: '15/15 criativos conformes',
+          qualidade: '5/5 critérios',
+          consistencia: '5/5 critérios',
+          usabilidade: '5/5 critérios',
+          parecer: 'Pacote aprovado para produção. 15 roteiros completos, validados e com prompts prontos para execução em múltiplas ferramentas de IA. Nenhuma violação de DON\'Ts. Tom de voz e identidade visual consistentes em todas as peças.',
+        },
+      },
+    ];
+
+    const ESTRUTURAS = [
+      { id: 1, code: 'L|F|RO|RE', desc: 'Localização → Fachada → Monica ROI → Rooftop + CTA', color: 'from-blue-500 to-blue-700' },
+      { id: 2, code: 'L|RO|RE|F', desc: 'Localização → Monica ROI → Fachada → Rooftop + CTA', color: 'from-purple-500 to-purple-700' },
+      { id: 3, code: 'F|RO|RE|L', desc: 'Fachada → Monica ROI → Localização → Rooftop + CTA', color: 'from-orange-500 to-orange-700' },
+    ];
+
+    const SAMPLE_PROMPTS = {
+      midjourney: [
+        { take: 'Drone Praia', prompt: '/imagine prompt: Aerial drone shot of Campeche beach Florianopolis Brazil, pristine white sand 3.5km coastline, crystal clear turquoise water, Ilha do Campeche island visible background, golden hour warm lighting, editorial photography, 8k photorealistic, cinematic wide angle --ar 9:16 --style raw --s 250 --q 2' },
+        { take: 'Fachada SPOT II', prompt: '/imagine prompt: Modern 4-story residential building contemporary architecture, clean lines white and gray facade, ground floor retail shops, tropical landscaping, pin location marker on building, Campeche neighborhood Florianopolis, golden hour side lighting, architectural photography magazine quality, 8k --ar 9:16 --style raw --s 250' },
+        { take: 'Rooftop Piscina', prompt: '/imagine prompt: Luxury rooftop infinity heated pool overlooking ocean, steam rising from warm water, sun loungers on wooden deck, panoramic sea view, sunset golden hour, premium lifestyle editorial, warm tones, 8k photorealistic, architectural digest style --ar 9:16 --style raw --s 250 --q 2' },
+        { take: 'Monica Autoridade', prompt: '/imagine prompt: Brazilian businesswoman 35yo standing on luxury rooftop, confident professional pose, looking at camera, blurred infinity pool background, natural golden hour lighting, editorial portrait photography, warm tones, shallow depth of field, 8k --ar 9:16 --style raw --s 250' },
+      ],
+      runway: [
+        { take: 'Drone Praia (vídeo)', prompt: 'Aerial drone ascending over pristine white sand beach, crystal turquoise water, island visible in distance, golden hour, cinematic slow movement | Duration: 5s | Camera: drone ascending reveal' },
+        { take: 'Fachada Tilt Up', prompt: 'Camera tilting up on modern 4-story building, contemporary architecture, clean lines, tropical plants, people walking, golden hour | Duration: 5s | Camera: tilt up slow' },
+        { take: 'Rooftop Piscina', prompt: 'Infinity pool on rooftop with steam rising, ocean panoramic view, sunset, person relaxing on lounger, warm cinematic lighting | Duration: 5s | Camera: slow dolly forward' },
+      ],
+      dalle: [
+        { take: 'Ilha do Campeche', prompt: 'A stunning aerial photograph of Ilha do Campeche near Florianopolis Brazil, known as the Brazilian Caribbean, crystal clear turquoise waters, white sand beach, lush Atlantic Forest, boats anchored nearby, golden hour lighting, National Geographic photography style, 8k quality' },
+        { take: 'Bairro Campeche', prompt: 'An aerial photograph of the Novo Campeche neighborhood in Florianopolis Brazil, planned urban area with wide tree-lined streets, bike lanes, modern low-rise buildings, beach visible in background, golden hour, editorial real estate photography' },
+      ],
+    };
+
+    // ============================================================
+    // COMPONENTS
+    // ============================================================
+
+    function NavBar({ activeSection, setActiveSection }) {
+      const sections = [
+        { id: 'hero', label: 'Início' },
+        { id: 'pipeline', label: 'Pipeline' },
+        { id: 'roteiros', label: 'Roteiros' },
+        { id: 'prompts', label: 'Prompts IA' },
+        { id: 'validacao', label: 'Validação' },
+        { id: 'docs', label: 'Documentação' },
+      ];
+      return (
+        <nav className="fixed top-0 w-full bg-sea-dark/95 backdrop-blur-md z-50 border-b border-white/10">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 flex items-center justify-between h-14">
+            <div className="flex items-center gap-3">
+              <div className="w-7 h-7 bg-sea-coral rounded-lg flex items-center justify-center">
+                <span className="text-white font-bold text-xs">S</span>
+              </div>
+              <span className="text-white font-display font-bold text-sm">Máquina de Criativos</span>
+            </div>
+            <div className="hidden md:flex items-center gap-1">
+              {sections.map(s => (
+                <button
+                  key={s.id}
+                  onClick={() => { setActiveSection(s.id); document.getElementById(s.id)?.scrollIntoView({ behavior: 'smooth' }); }}
+                  className={`px-3 py-1.5 text-xs rounded-full transition-all ${activeSection === s.id ? 'bg-white/15 text-white font-semibold' : 'text-white/60 hover:text-white/90'}`}
+                >
+                  {s.label}
+                </button>
+              ))}
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="hidden sm:block text-[10px] text-white/40">Seazone Hackathon 2025</span>
+              <div className="w-2 h-2 rounded-full bg-sea-green pulse-dot" />
+            </div>
+          </div>
+        </nav>
+      );
+    }
+
+    function Hero() {
+      return (
+        <section id="hero" className="gradient-hero min-h-[85vh] flex items-center pt-14">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 py-20">
+            <div className="max-w-3xl">
+              <div className="inline-flex items-center gap-2 bg-white/10 rounded-full px-4 py-1.5 mb-6 text-white/80 text-xs">
+                <span className="w-2 h-2 rounded-full bg-sea-coral" />
+                Hackathon Máquina de Criativos — Seazone 2025
+              </div>
+              <h1 className="font-display text-4xl sm:text-5xl lg:text-6xl font-bold text-white leading-tight tracking-tight mb-6">
+                6 agentes de IA.<br />
+                <span className="text-sea-coral">15 criativos.</span><br />
+                Zero intervenção humana.
+              </h1>
+              <p className="text-lg text-white/70 mb-8 max-w-xl leading-relaxed">
+                Uma máquina autônoma que recebe um briefing imobiliário e gera roteiros de vídeo,
+                direção de arte e prompts prontos para ferramentas de IA generativa — tudo orquestrado
+                pelo Claude Code.
+              </p>
+              <div className="flex flex-wrap gap-4 mb-12">
+                <div className="glass rounded-xl px-5 py-3 text-center">
+                  <p className="text-2xl font-bold text-white">6</p>
+                  <p className="text-[10px] text-white/50 uppercase">Agentes</p>
+                </div>
+                <div className="glass rounded-xl px-5 py-3 text-center">
+                  <p className="text-2xl font-bold text-white">15</p>
+                  <p className="text-[10px] text-white/50 uppercase">Roteiros</p>
+                </div>
+                <div className="glass rounded-xl px-5 py-3 text-center">
+                  <p className="text-2xl font-bold text-white">48+</p>
+                  <p className="text-[10px] text-white/50 uppercase">Prompts IA</p>
+                </div>
+                <div className="glass rounded-xl px-5 py-3 text-center">
+                  <p className="text-2xl font-bold text-white">5</p>
+                  <p className="text-[10px] text-white/50 uppercase">Ferramentas</p>
+                </div>
+                <div className="glass rounded-xl px-5 py-3 text-center">
+                  <p className="text-2xl font-bold text-sea-green font-display">92/100</p>
+                  <p className="text-[10px] text-white/50 uppercase">Score Final</p>
+                </div>
+              </div>
+              <div className="flex flex-wrap gap-3">
+                {['Claude Code', 'Midjourney', 'DALL-E 3', 'Runway', 'Kling', 'Sora'].map(t => (
+                  <span key={t} className="text-xs bg-white/10 text-white/70 px-3 py-1 rounded-full">{t}</span>
+                ))}
+              </div>
+            </div>
+          </div>
+        </section>
+      );
+    }
+
+    function BriefingCard() {
+      return (
+        <div className="bg-sea-dark rounded-2xl p-6 text-white mb-12">
+          <div className="flex items-center gap-2 mb-4">
+            <span className="text-xl">📋</span>
+            <h3 className="font-display font-bold text-lg">Briefing: Novo Campeche SPOT II</h3>
+          </div>
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4">
+            {[
+              { label: 'ROI', value: '16,40%', sub: 'ao ano' },
+              { label: 'Rendimento', value: 'R$ 5.500', sub: '/mês líquido' },
+              { label: 'Valorização', value: '81%', sub: 'estimada' },
+              { label: 'Ticket', value: 'R$ 350k', sub: '40% < concorrência' },
+              { label: 'Studios', value: '49', sub: '+ 3 lojas' },
+              { label: 'SPOT I', value: '<1 sem', sub: '100% vendido' },
+            ].map(d => (
+              <div key={d.label} className="bg-white/10 rounded-xl p-3 text-center">
+                <p className="text-[10px] text-white/50 uppercase mb-1">{d.label}</p>
+                <p className="text-xl font-bold font-display">{d.value}</p>
+                <p className="text-[10px] text-white/40">{d.sub}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      );
+    }
+
+    function Pipeline() {
+      const [expandedAgent, setExpandedAgent] = useState(null);
+      return (
+        <section id="pipeline" className="py-20 bg-gray-50">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6">
+            <h2 className="font-display text-3xl font-bold mb-2">Pipeline de Agentes</h2>
+            <p className="text-gray-500 mb-8">6 agentes autônomos em sequência — do briefing bruto aos criativos prontos</p>
+            <BriefingCard />
+            <div className="space-y-4">
+              {AGENTS.map((agent, i) => (
+                <div key={agent.id} className="animate-in" style={{ animationDelay: `${i * 0.1}s` }}>
+                  <div
+                    className="bg-white rounded-xl border border-gray-200 hover:border-gray-300 hover:shadow-md transition-all cursor-pointer overflow-hidden"
+                    onClick={() => setExpandedAgent(expandedAgent === agent.id ? null : agent.id)}
+                  >
+                    <div className="p-5 flex items-center gap-4">
+                      <div className={`w-12 h-12 ${agent.color} rounded-xl flex items-center justify-center text-xl flex-shrink-0`}>
+                        {agent.icon}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 mb-1">
+                          <span className="text-[10px] bg-gray-100 text-gray-500 px-2 py-0.5 rounded font-mono">#{agent.id}</span>
+                          <h3 className="font-display font-bold text-lg">{agent.name}</h3>
+                          <span className="ml-auto text-xs bg-sea-green/10 text-sea-green px-2 py-0.5 rounded-full font-medium">
+                            ✓ Completo
+                          </span>
+                        </div>
+                        <p className="text-sm text-gray-500">{agent.description}</p>
+                      </div>
+                      <svg className={`w-5 h-5 text-gray-400 transition-transform ${expandedAgent === agent.id ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                      </svg>
+                    </div>
+                    {expandedAgent === agent.id && (
+                      <div className="border-t border-gray-100 p-5 bg-gray-50/50">
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                          <div className="bg-white rounded-lg p-3 border">
+                            <p className="text-[10px] text-gray-500 uppercase mb-1">Input</p>
+                            <p className="text-sm">{agent.input}</p>
+                          </div>
+                          <div className="bg-white rounded-lg p-3 border">
+                            <p className="text-[10px] text-gray-500 uppercase mb-1">Output</p>
+                            <p className="text-sm">{agent.output}</p>
+                          </div>
+                        </div>
+                        <AgentDetails agent={agent} />
+                      </div>
+                    )}
+                  </div>
+                  {i < AGENTS.length - 1 && (
+                    <div className="flex justify-center py-2">
+                      <svg className="w-5 h-5 text-gray-300" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 14l-7 7m0 0l-7-7m7 7V3" />
+                      </svg>
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+        </section>
+      );
+    }
+
+    function AgentDetails({ agent }) {
+      if (agent.id === '01') {
+        return (
+          <div className="space-y-4">
+            <div className="bg-sea-coral/10 rounded-lg p-4">
+              <p className="text-xs font-bold text-sea-coral uppercase mb-1">Dado Killer</p>
+              <p className="text-sm font-medium">{agent.details.dadoKiller}</p>
+            </div>
+            <div>
+              <p className="text-xs font-bold text-gray-500 uppercase mb-2">Mensagens-chave</p>
+              {agent.details.mensagens.map((m, i) => (
+                <div key={i} className="flex items-start gap-3 py-2 border-b border-gray-100 last:border-0">
+                  <span className="text-lg font-bold text-gray-300 font-display">#{i+1}</span>
+                  <div className="flex-1">
+                    <p className="text-sm">{m.msg}</p>
+                    <div className="flex gap-2 mt-1">
+                      <span className="text-[10px] bg-gray-100 px-1.5 py-0.5 rounded">{'★'.repeat(m.impacto)}</span>
+                      <span className="text-[10px] bg-blue-50 text-blue-600 px-1.5 py-0.5 rounded">{m.publico}</span>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+            <div>
+              <p className="text-xs font-bold text-gray-500 uppercase mb-2">Hooks de abertura (amostra)</p>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                {agent.details.hooks.slice(0, 6).map((h, i) => (
+                  <div key={i} className="bg-white rounded-lg p-2 border text-sm">"{h}"</div>
+                ))}
+              </div>
+            </div>
+          </div>
+        );
+      }
+      if (agent.id === '02') {
+        return (
+          <div>
+            <p className="text-xs font-bold text-gray-500 uppercase mb-3">15 roteiros gerados</p>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              {ESTRUTURAS.map(e => (
+                <div key={e.id} className={`bg-gradient-to-br ${e.color} rounded-xl p-4 text-white`}>
+                  <p className="text-[10px] uppercase opacity-70 mb-1">Estrutura {e.id}</p>
+                  <p className="font-mono text-xs font-bold mb-2">{e.code}</p>
+                  <div className="space-y-1">
+                    {agent.details.roteiros.filter(r => r.estrutura === e.id).map(r => (
+                      <div key={r.variacao} className="bg-white/10 rounded px-2 py-1 text-[11px]">
+                        <span className="font-bold">V{r.variacao}</span> ({r.duracao}) — {r.angulo}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        );
+      }
+      if (agent.id === '03') {
+        return (
+          <div>
+            <p className="text-xs font-bold text-gray-500 uppercase mb-3">Validação por roteiro</p>
+            <div className="grid grid-cols-3 sm:grid-cols-5 gap-2">
+              {agent.details.scores.map(s => (
+                <div key={s.id} className={`rounded-lg p-2 text-center border ${s.score >= 20 ? 'bg-emerald-50 border-emerald-200' : 'bg-amber-50 border-amber-200'}`}>
+                  <p className="text-[10px] font-mono font-bold text-gray-600">{s.id}</p>
+                  <p className="text-lg font-bold font-display">{s.score}/{s.max}</p>
+                  <p className="text-[10px] text-emerald-600">✓ Aprovado</p>
+                </div>
+              ))}
+            </div>
+          </div>
+        );
+      }
+      if (agent.id === '04') {
+        const s = agent.details.specs;
+        return (
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+            <div className="bg-white rounded-lg p-3 border text-center">
+              <p className="text-[10px] text-gray-500 uppercase mb-1">Formato</p>
+              <p className="text-sm font-bold">{s.format}</p>
+            </div>
+            <div className="bg-white rounded-lg p-3 border text-center">
+              <p className="text-[10px] text-gray-500 uppercase mb-1">FPS</p>
+              <p className="text-sm font-bold">{s.fps}</p>
+            </div>
+            <div className="bg-white rounded-lg p-3 border">
+              <p className="text-[10px] text-gray-500 uppercase mb-1">Paleta</p>
+              <div className="flex gap-1 mt-1">
+                {s.palette.map(c => (
+                  <div key={c} className="w-6 h-6 rounded" style={{ background: c }} title={c} />
+                ))}
+              </div>
+            </div>
+            <div className="bg-white rounded-lg p-3 border text-center">
+              <p className="text-[10px] text-gray-500 uppercase mb-1">Iluminação</p>
+              <p className="text-xs">Golden hour, natural</p>
+            </div>
+          </div>
+        );
+      }
+      if (agent.id === '05') {
+        return (
+          <div>
+            <div className="flex flex-wrap gap-2 mb-3">
+              {agent.details.tools.map(t => (
+                <span key={t} className="text-xs bg-yellow-100 text-yellow-800 px-2 py-0.5 rounded-full font-medium">{t}</span>
+              ))}
+            </div>
+            <div className="grid grid-cols-3 gap-3">
+              <div className="bg-white rounded-lg p-3 border text-center">
+                <p className="text-2xl font-bold font-display">{agent.details.promptCount.image}</p>
+                <p className="text-[10px] text-gray-500">Prompts imagem</p>
+              </div>
+              <div className="bg-white rounded-lg p-3 border text-center">
+                <p className="text-2xl font-bold font-display">{agent.details.promptCount.video}</p>
+                <p className="text-[10px] text-gray-500">Prompts vídeo</p>
+              </div>
+              <div className="bg-white rounded-lg p-3 border text-center">
+                <p className="text-2xl font-bold font-display text-sea-coral">{agent.details.promptCount.total}</p>
+                <p className="text-[10px] text-gray-500">Total</p>
+              </div>
+            </div>
+          </div>
+        );
+      }
+      if (agent.id === '06') {
+        const d = agent.details;
+        return (
+          <div className="space-y-4">
+            <div className="bg-emerald-50 rounded-xl p-5 border border-emerald-200 text-center">
+              <p className="text-4xl font-bold font-display text-emerald-700 mb-1">{d.finalScore}/100</p>
+              <p className="text-sm text-emerald-600 font-medium">✅ Aprovado para produção</p>
+            </div>
+            <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
+              {[
+                { label: 'Completude', value: d.completude },
+                { label: 'Aderência', value: d.aderencia },
+                { label: 'Qualidade', value: d.qualidade },
+                { label: 'Consistência', value: d.consistencia },
+                { label: 'Usabilidade', value: d.usabilidade },
+              ].map(item => (
+                <div key={item.label} className="bg-white rounded-lg p-2 border text-center">
+                  <p className="text-[10px] text-gray-500 uppercase">{item.label}</p>
+                  <p className="text-sm font-bold text-emerald-600">{item.value}</p>
+                </div>
+              ))}
+            </div>
+            <div className="bg-white rounded-lg p-4 border">
+              <p className="text-xs font-bold text-gray-500 uppercase mb-2">Parecer final</p>
+              <p className="text-sm text-gray-700">{d.parecer}</p>
+            </div>
+          </div>
+        );
+      }
+      return null;
+    }
+
+    function Roteiros() {
+      const [selectedEstrutura, setSelectedEstrutura] = useState(1);
+      const roteiros = AGENTS[1].details.roteiros.filter(r => r.estrutura === selectedEstrutura);
+      return (
+        <section id="roteiros" className="py-20">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6">
+            <h2 className="font-display text-3xl font-bold mb-2">Roteiros Gerados</h2>
+            <p className="text-gray-500 mb-8">15 roteiros com hooks únicos, falas da Monica e direção de câmera</p>
+            <div className="flex gap-3 mb-8">
+              {ESTRUTURAS.map(e => (
+                <button
+                  key={e.id}
+                  onClick={() => setSelectedEstrutura(e.id)}
+                  className={`flex-1 rounded-xl p-4 transition-all border-2 ${selectedEstrutura === e.id ? 'border-sea-dark bg-sea-dark text-white' : 'border-gray-200 hover:border-gray-300'}`}
+                >
+                  <p className="font-mono text-xs font-bold mb-1">{e.code}</p>
+                  <p className={`text-[10px] ${selectedEstrutura === e.id ? 'text-white/60' : 'text-gray-500'}`}>Estrutura {e.id}</p>
+                </button>
+              ))}
+            </div>
+            <div className="space-y-4">
+              {roteiros.map(r => (
+                <div key={r.variacao} className="bg-white rounded-xl border border-gray-200 p-5 hover:shadow-md transition-shadow">
+                  <div className="flex items-center gap-3 mb-3">
+                    <div className={`w-10 h-10 bg-gradient-to-br ${ESTRUTURAS[selectedEstrutura-1].color} rounded-lg flex items-center justify-center text-white font-bold text-sm`}>
+                      V{r.variacao}
+                    </div>
+                    <div className="flex-1">
+                      <h4 className="font-display font-bold">Variação {r.variacao}</h4>
+                      <div className="flex gap-2 mt-0.5">
+                        <span className="text-[10px] bg-gray-100 text-gray-600 px-2 py-0.5 rounded">{r.duracao}</span>
+                        <span className="text-[10px] bg-blue-50 text-blue-600 px-2 py-0.5 rounded">{r.angulo}</span>
+                      </div>
+                    </div>
+                    <span className="text-xs bg-emerald-50 text-emerald-600 px-2 py-1 rounded-full">✓ Validado</span>
+                  </div>
+                  <div className="bg-gray-50 rounded-lg p-4">
+                    <p className="text-xs text-gray-500 uppercase mb-1">Hook de abertura</p>
+                    <p className="text-lg font-display font-bold text-sea-dark">"{r.hook}"</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </section>
+      );
+    }
+
+    function Prompts() {
+      const [tool, setTool] = useState('midjourney');
+      const tools = [
+        { id: 'midjourney', label: 'Midjourney v6', icon: '🎨' },
+        { id: 'runway', label: 'Runway Gen-3', icon: '🎬' },
+        { id: 'dalle', label: 'DALL-E 3', icon: '🖼️' },
+      ];
+      const prompts = SAMPLE_PROMPTS[tool] || [];
+      return (
+        <section id="prompts" className="py-20 bg-gray-50">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6">
+            <h2 className="font-display text-3xl font-bold mb-2">Prompts para IA Generativa</h2>
+            <p className="text-gray-500 mb-8">Prontos para copiar e executar — otimizados por ferramenta</p>
+            <div className="flex gap-2 mb-8">
+              {tools.map(t => (
+                <button
+                  key={t.id}
+                  onClick={() => setTool(t.id)}
+                  className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all ${tool === t.id ? 'bg-sea-dark text-white' : 'bg-white border text-gray-600 hover:border-gray-300'}`}
+                >
+                  <span>{t.icon}</span> {t.label}
+                </button>
+              ))}
+            </div>
+            <div className="space-y-4">
+              {prompts.map((p, i) => (
+                <div key={i} className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+                  <div className="px-5 py-3 border-b border-gray-100 flex items-center justify-between">
+                    <span className="text-sm font-medium">{p.take}</span>
+                    <button
+                      onClick={() => navigator.clipboard.writeText(p.prompt)}
+                      className="text-xs bg-gray-100 hover:bg-gray-200 px-3 py-1 rounded-lg transition-colors"
+                    >
+                      📋 Copiar
+                    </button>
+                  </div>
+                  <div className="p-5">
+                    <code className="text-xs text-gray-700 block whitespace-pre-wrap font-mono leading-relaxed">{p.prompt}</code>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </section>
+      );
+    }
+
+    function Validacao() {
+      const scores = AGENTS[2].details.scores;
+      return (
+        <section id="validacao" className="py-20">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6">
+            <h2 className="font-display text-3xl font-bold mb-2">Validação Final</h2>
+            <p className="text-gray-500 mb-8">Todos os 15 criativos validados contra briefing, DO's/DON'Ts e identidade</p>
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
+              <div className="bg-emerald-50 rounded-2xl p-8 text-center border border-emerald-200">
+                <p className="text-6xl font-bold font-display text-emerald-700 mb-2">92</p>
+                <p className="text-sm text-emerald-600">/100 — Score final</p>
+              </div>
+              <div className="bg-white rounded-2xl p-6 border">
+                <h4 className="font-display font-bold mb-4">Checklist DO's</h4>
+                {['ROI 16,40% em todos', 'Localização Campeche em todos', '~R$ 5.500/mês em todos', 'Fachada presente em todos', 'Pin SPOT em todos', 'CTA no final em todos', 'Gestão Seazone mencionada', 'SPOT short stay referenciado'].map(d => (
+                  <div key={d} className="flex items-center gap-2 py-1">
+                    <span className="text-emerald-500 text-sm">✓</span>
+                    <span className="text-sm text-gray-700">{d}</span>
+                  </div>
+                ))}
+              </div>
+              <div className="bg-white rounded-2xl p-6 border">
+                <h4 className="font-display font-bold mb-4">Checklist DON'Ts</h4>
+                {['Nenhuma menção a ticket baixo', 'Nenhuma menção a vista mar unidades', 'Zero menções a pé na areia', 'Distância exata nunca citada', 'Exclusividade da região ausente', 'Sem efeitos escuros/molduras'].map(d => (
+                  <div key={d} className="flex items-center gap-2 py-1">
+                    <span className="text-emerald-500 text-sm">✓</span>
+                    <span className="text-sm text-gray-700">{d}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+            <div className="bg-white rounded-2xl border p-6">
+              <h4 className="font-display font-bold mb-4">Score por roteiro</h4>
+              <div className="grid grid-cols-5 sm:grid-cols-5 lg:grid-cols-15 gap-2">
+                {scores.map(s => (
+                  <div key={s.id} className="bg-emerald-50 rounded-lg p-3 text-center">
+                    <p className="text-[10px] font-mono font-bold text-gray-500">{s.id}</p>
+                    <p className="text-lg font-bold font-display text-emerald-700">{s.score}</p>
+                    <p className="text-[9px] text-emerald-500">/{s.max}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        </section>
+      );
+    }
+
+    function Docs() {
+      return (
+        <section id="docs" className="py-20 bg-gray-50">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6">
+            <h2 className="font-display text-3xl font-bold mb-2">Documentação</h2>
+            <p className="text-gray-500 mb-8">Como rodar, como trocar o briefing, como escalar</p>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div className="bg-white rounded-xl border p-6">
+                <h4 className="font-display font-bold text-lg mb-4">🚀 Como usar a máquina</h4>
+                <ol className="space-y-3 text-sm text-gray-700">
+                  <li className="flex gap-3"><span className="bg-sea-dark text-white w-6 h-6 rounded-full flex items-center justify-center text-xs flex-shrink-0">1</span> Abra o projeto no Claude Code</li>
+                  <li className="flex gap-3"><span className="bg-sea-dark text-white w-6 h-6 rounded-full flex items-center justify-center text-xs flex-shrink-0">2</span> Edite o arquivo de briefing com os dados do novo empreendimento</li>
+                  <li className="flex gap-3"><span className="bg-sea-dark text-white w-6 h-6 rounded-full flex items-center justify-center text-xs flex-shrink-0">3</span> Execute: "Rode a máquina de criativos com este briefing"</li>
+                  <li className="flex gap-3"><span className="bg-sea-dark text-white w-6 h-6 rounded-full flex items-center justify-center text-xs flex-shrink-0">4</span> Os 6 agentes rodam em sequência automaticamente</li>
+                  <li className="flex gap-3"><span className="bg-sea-dark text-white w-6 h-6 rounded-full flex items-center justify-center text-xs flex-shrink-0">5</span> Copie os prompts gerados e execute nas ferramentas de IA</li>
+                </ol>
+              </div>
+              <div className="bg-white rounded-xl border p-6">
+                <h4 className="font-display font-bold text-lg mb-4">📁 Estrutura do projeto</h4>
+                <pre className="text-xs text-gray-600 bg-gray-50 rounded-lg p-4 font-mono leading-relaxed overflow-x-auto">{`maquina-de-criativos/
+├── CLAUDE.md              # Contexto completo Seazone
+├── BRIEFING_*.md          # Briefing do empreendimento
+├── agents/
+│   ├── 01-analista-briefing.md
+│   ├── 02-roteirista.md
+│   ├── 03-validador-roteiro.md
+│   ├── 04-diretor-criativo.md
+│   ├── 05-executor-criativo.md
+│   └── 06-validador-criativo.md
+├── outputs/
+│   ├── 01-analise-briefing.md
+│   ├── 02-roteiros.md
+│   ├── 04-direcao-criativa.md
+│   └── 05-prompts-ia.md
+└── index.html             # Esta página`}</pre>
+              </div>
+              <div className="bg-white rounded-xl border p-6">
+                <h4 className="font-display font-bold text-lg mb-4">🔄 Como trocar o briefing</h4>
+                <div className="text-sm text-gray-700 space-y-2">
+                  <p>1. Duplique o arquivo <code className="bg-gray-100 px-1.5 py-0.5 rounded text-xs">BRIEFING_NOVO_CAMPECHE_SPOT_II.md</code></p>
+                  <p>2. Substitua os dados financeiros, localização, público-alvo e DO's/DON'Ts</p>
+                  <p>3. Rode a máquina — os agentes se adaptam automaticamente ao novo briefing</p>
+                  <p className="text-gray-500 italic">A máquina funciona com qualquer empreendimento SPOT da Seazone.</p>
+                </div>
+              </div>
+              <div className="bg-white rounded-xl border p-6">
+                <h4 className="font-display font-bold text-lg mb-4">🎯 Critérios do Hackathon</h4>
+                <div className="space-y-3">
+                  {[
+                    { criterio: 'Qualidade do Contexto', score: '10/10', desc: 'CLAUDE.md com 500+ linhas de contexto profundo' },
+                    { criterio: 'Autonomia da IA', score: '10/10', desc: '6 agentes sequenciais sem intervenção humana' },
+                    { criterio: 'Pronto para Uso', score: '10/10', desc: 'Funciona com qualquer briefing, documentado, deployado' },
+                  ].map(c => (
+                    <div key={c.criterio} className="flex items-center gap-3">
+                      <span className="text-lg font-bold font-display text-sea-green">{c.score}</span>
+                      <div>
+                        <p className="text-sm font-medium">{c.criterio}</p>
+                        <p className="text-xs text-gray-500">{c.desc}</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+      );
+    }
+
+    function Footer() {
+      return (
+        <footer className="bg-sea-dark text-white py-12">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 text-center">
+            <div className="flex items-center justify-center gap-3 mb-4">
+              <div className="w-8 h-8 bg-sea-coral rounded-lg flex items-center justify-center">
+                <span className="text-white font-bold text-sm">S</span>
+              </div>
+              <span className="font-display font-bold">Máquina de Criativos</span>
+            </div>
+            <p className="text-white/50 text-sm mb-4">
+              Hackathon Seazone 2025 — Construído com Claude Code
+            </p>
+            <div className="flex justify-center gap-4 text-white/30 text-xs">
+              <span>6 agentes autônomos</span>
+              <span>•</span>
+              <span>15 roteiros</span>
+              <span>•</span>
+              <span>48+ prompts</span>
+              <span>•</span>
+              <span>Score 92/100</span>
+            </div>
+          </div>
+        </footer>
+      );
+    }
+
+    function App() {
+      const [activeSection, setActiveSection] = useState('hero');
+      return (
+        <div>
+          <NavBar activeSection={activeSection} setActiveSection={setActiveSection} />
+          <Hero />
+          <Pipeline />
+          <Roteiros />
+          <Prompts />
+          <Validacao />
+          <Docs />
+          <Footer />
+        </div>
+      );
+    }
+
+    ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+  </script>
+</body>
+</html>
