@@ -267,17 +267,27 @@ function Step1_Input({ onSubmit }) {
     }
 
     try {
-      // Try direct fetch first, then CORS proxy as fallback
-      let res;
-      try {
-        res = await fetch(briefingUrl);
-      } catch (corsErr) {
-        // CORS blocked — use proxy
-        const proxyUrl = `https://api.allorigins.win/raw?url=${encodeURIComponent(briefingUrl)}`;
-        res = await fetch(proxyUrl);
+      // Try multiple approaches to fetch the briefing
+      let data = null;
+      const proxies = [
+        briefingUrl, // direct
+        `https://api.allorigins.win/raw?url=${encodeURIComponent(briefingUrl)}`,
+        `https://corsproxy.io/?${encodeURIComponent(briefingUrl)}`,
+        `https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(briefingUrl)}`,
+      ];
+
+      for (const url of proxies) {
+        try {
+          const res = await fetch(url, { signal: AbortSignal.timeout(8000) });
+          if (res.ok) {
+            const text = await res.text();
+            data = JSON.parse(text);
+            break;
+          }
+        } catch (e) { continue; }
       }
-      if (!res.ok) throw new Error(`Erro ${res.status}: briefing.json não encontrado nesta URL.`);
-      const data = await res.json();
+
+      if (!data) throw new Error('Não foi possível acessar o briefing. Verifique se a URL está correta e se o arquivo briefing.json existe.');
       onSubmit(data, briefingUrl);
     } catch (err) {
       setError(err.message || 'Não foi possível acessar o briefing. Verifique a URL.');
