@@ -271,25 +271,15 @@ function Step1_Input({ onSubmit }) {
     if (!url.trim()) return;
     setLoading(true);
     setError(null);
-    let briefingUrl = url.trim();
-    if (!briefingUrl.endsWith('/briefing.json')) {
-      briefingUrl = briefingUrl.replace(/\/$/, '') + '/briefing.json';
-    }
     try {
-      let data = null;
-      const proxies = [
-        briefingUrl,
-        `https://api.allorigins.win/raw?url=${encodeURIComponent(briefingUrl)}`,
-        `https://corsproxy.io/?${encodeURIComponent(briefingUrl)}`,
-      ];
-      for (const u of proxies) {
-        try {
-          const res = await fetch(u, { signal: AbortSignal.timeout(8000) });
-          if (res.ok) { data = JSON.parse(await res.text()); break; }
-        } catch (e) { continue; }
-      }
-      if (!data) throw new Error('Não foi possível acessar o briefing.');
-      onSubmit(data, briefingUrl);
+      const res = await fetch('/api/fetch-briefing', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ url: url.trim() }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Erro ao buscar briefing');
+      onSubmit(data, url.trim());
     } catch (err) {
       setError(err.message);
     } finally {
