@@ -558,82 +558,299 @@ function PieceCard({ pieceNumber, briefing, autoStart }) {
 // STEP 3 — PIPELINE (real execution!)
 // ============================================================
 
+function AgentCard({ number, name, icon, status, description, children, timer }) {
+  const colors = {
+    idle: 'border-gray-200 opacity-60',
+    running: 'border-yellow-300 shadow-md',
+    success: 'border-emerald-300',
+    error: 'border-red-300',
+  };
+  const badges = {
+    idle: { bg: 'bg-gray-100 text-gray-400', label: 'Aguardando' },
+    running: { bg: 'bg-yellow-100 text-yellow-700', label: description || 'Rodando...' },
+    success: { bg: 'bg-emerald-100 text-emerald-700', label: 'Concluído' },
+    error: { bg: 'bg-red-100 text-red-700', label: 'Erro' },
+  };
+  const badge = badges[status];
+  return (
+    <div className={`bg-white rounded-xl border-2 overflow-hidden transition-all ${colors[status]}`}>
+      <div className="flex items-center gap-3 px-5 py-4">
+        <div className={`w-10 h-10 rounded-xl flex items-center justify-center text-lg flex-shrink-0
+          ${status === 'success' ? 'bg-emerald-100' : status === 'running' ? 'bg-yellow-100' : 'bg-gray-100'}`}>
+          {status === 'success' ? '✓' : icon}
+        </div>
+        <div className="flex-1">
+          <div className="flex items-center gap-2">
+            <span className="text-[10px] font-mono bg-gray-100 text-gray-500 px-1.5 py-0.5 rounded">#{number}</span>
+            <h3 className="font-display font-bold">{name}</h3>
+          </div>
+          {status === 'running' && <p className="text-sm text-yellow-700 mt-1 flex items-center gap-2">
+            <span className="w-2 h-2 bg-yellow-500 rounded-full pulse" />{description}
+          </p>}
+        </div>
+        <div className="flex items-center gap-2 flex-shrink-0">
+          {timer > 0 && <span className="text-xs font-mono px-2 py-1 rounded-full bg-gray-100 text-gray-600">{formatTimer(timer)}</span>}
+          <span className={`text-xs font-medium px-3 py-1 rounded-full ${badge.bg}`}>
+            {status === 'running' && <span className="inline-block w-2 h-2 bg-current rounded-full mr-1.5 pulse" />}
+            {badge.label}
+          </span>
+        </div>
+      </div>
+      {children && <div className="border-t border-gray-100">{children}</div>}
+    </div>
+  );
+}
+
 function Step3_Pipeline({ data, onReset }) {
   const projectName = data.projeto?.nome || 'Empreendimento';
+
+  // --- Phase 1: Roteiros (Agents 02+03) ---
   const [activePieces, setActivePieces] = useState([1]);
   const [completedPieces, setCompletedPieces] = useState(new Set());
-  const totalTimer = useTimer(completedPieces.size < 5);
+  const [roteiroTexts, setRoteiroTexts] = useState({});
+  const roteirosTimer = useTimer(completedPieces.size < 5);
 
-  // Watch for pieces completing and start next one
+  // --- Phase 2: Direction (Agent 04) ---
+  const [phase, setPhase] = useState('roteiros'); // roteiros, direction, creatives, validation, done
+  const [direction, setDirection] = useState(null);
+  const [dirStatus, setDirStatus] = useState('idle');
+  const dirTimer = useTimer(dirStatus === 'running');
+
+  // --- Phase 3: Image generation (Agent 05) ---
+  const [generatedImages, setGeneratedImages] = useState([]);
+  const [genStatus, setGenStatus] = useState('idle');
+  const [genProgress, setGenProgress] = useState('');
+  const genTimer = useTimer(genStatus === 'running');
+
+  // --- Phase 4: Validation (Agent 06) ---
+  const [finalValidation, setFinalValidation] = useState(null);
+  const [valStatus, setValStatus] = useState('idle');
+  const valTimer = useTimer(valStatus === 'running');
+
+  // Collect roteiro texts from PieceCardWrappers
+  const handlePieceComplete = useCallback((pieceNum, text) => {
+    setRoteiroTexts(prev => ({ ...prev, [pieceNum]: text }));
+  }, []);
+
   const handlePieceStatus = useCallback((pieceNum, status) => {
-    if (status === 'approved' || status === 'rejected' || status === 'error') {
-      setCompletedPieces(prev => {
-        const next = new Set(prev);
-        next.add(pieceNum);
-        return next;
-      });
-      // Start next piece
-      const nextPiece = pieceNum + 1;
-      if (nextPiece <= 5) {
-        setActivePieces(prev => prev.includes(nextPiece) ? prev : [...prev, nextPiece]);
-      }
+    if (status === 'approved' || status === 'error') {
+      setCompletedPieces(prev => { const n = new Set(prev); n.add(pieceNum); return n; });
+      const next = pieceNum + 1;
+      if (next <= 5) setActivePieces(prev => prev.includes(next) ? prev : [...prev, next]);
     }
   }, []);
 
-  const allDone = completedPieces.size >= 5;
+  const allRoteiros = completedPieces.size >= 5;
+
+  // Auto-start Agent 04 when roteiros done
+  useEffect(() => {
+    if (allRoteiros && phase === 'roteiros') {
+      setPhase('direction');
+      runDirection();
+    }
+  }, [allRoteiros]);
+
+  // --- Agent 04: Generate direction ---
+  const runDirection = async () => {
+    setDirStatus('running');
+    try {
+      const res = await fetch('/api/generate-direction', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ briefing: data, roteiros: roteiroTexts }),
+      });
+      const result = await res.json();
+      if (!res.ok) throw new Error(result.error || 'Erro no Agente 04');
+      setDirection(result);
+      setDirStatus('success');
+      setPhase('creatives');
+      runCreatives(result);
+    } catch (err) {
+      setDirStatus('error');
+      setGenProgress('Erro: ' + err.message);
+    }
+  };
+
+  // --- Agent 05: Generate images ---
+  const runCreatives = async (dir) => {
+    setGenStatus('running');
+    const pieces = dir.pieces || [];
+    const images = [];
+    let total = 0;
+    let done = 0;
+
+    // Count total images to generate
+    for (const p of pieces) {
+      total += (p.scenes || []).length * 2; // Flux + Recraft per scene
+    }
+
+    for (const piece of pieces) {
+      for (const scene of (piece.scenes || [])) {
+        // Generate with Flux Pro
+        for (const eng of ['flux', 'recraft']) {
+          const prompt = eng === 'flux' ? scene.imagePrompt : (scene.imagePromptRecraft || scene.imagePrompt);
+          if (!prompt) { done++; continue; }
+
+          done++;
+          setGenProgress(`Gerando imagem ${done}/${total} (${eng === 'flux' ? 'Flux Pro' : 'Recraft'}) — Peça ${piece.pieceNumber}, Cena ${scene.sceneNumber}`);
+
+          try {
+            const res = await fetch('/api/generate-image', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ prompt, engine: eng, format: scene.format || '9:16' }),
+            });
+            const result = await res.json();
+            if (result.url) {
+              images.push({
+                piece: piece.pieceNumber,
+                scene: scene.sceneNumber,
+                engine: eng,
+                url: result.url,
+                prompt,
+              });
+              setGeneratedImages([...images]);
+            }
+          } catch (err) {
+            // Continue on error
+            images.push({ piece: piece.pieceNumber, scene: scene.sceneNumber, engine: eng, error: err.message });
+          }
+        }
+      }
+    }
+
+    setGenStatus('success');
+    setPhase('validation');
+    runValidation(images, dir);
+  };
+
+  // --- Agent 06: Validate ---
+  const runValidation = async (images, dir) => {
+    setValStatus('running');
+    try {
+      const creatives = {
+        direction: dir,
+        images: images.filter(i => i.url).map(i => ({
+          piece: i.piece, scene: i.scene, engine: i.engine, prompt: i.prompt,
+        })),
+        totalImages: images.filter(i => i.url).length,
+        totalErrors: images.filter(i => i.error).length,
+      };
+      const res = await fetch('/api/validate-creative', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ briefing: data, creatives }),
+      });
+      const result = await res.json();
+      setFinalValidation(result);
+      setValStatus('success');
+      setPhase('done');
+    } catch (err) {
+      setValStatus('error');
+    }
+  };
 
   return (
     <div className="fade-in">
       <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-4 mb-6 flex items-center justify-between">
-        <p className="text-sm text-emerald-700">✅ Briefing <strong>{projectName}</strong> validado. Gerando roteiros...</p>
-        <span className={`text-xs font-mono px-2 py-1 rounded-full ${allDone ? 'bg-emerald-200 text-emerald-800' : 'bg-yellow-100 text-yellow-800'}`}>
-          {completedPieces.size}/5 peças | {formatTimer(totalTimer)}
+        <p className="text-sm text-emerald-700">✅ Briefing <strong>{projectName}</strong> validado.</p>
+        <span className="text-xs font-mono px-2 py-1 rounded-full bg-yellow-100 text-yellow-800">
+          {phase === 'done' ? 'Pipeline completo!' : `Fase: ${phase}`}
         </span>
       </div>
 
-      <div className="space-y-4">
+      {/* Agent 02+03: Roteiros */}
+      <h3 className="font-display font-bold text-sm text-gray-500 mb-3 uppercase tracking-wider">Agentes 02+03 — Roteiros</h3>
+      <div className="space-y-4 mb-6">
         {[1, 2, 3, 4, 5].map(n => (
           <PieceCardWrapper key={n} pieceNumber={n} briefing={data}
-            active={activePieces.includes(n)} onStatusChange={handlePieceStatus} />
+            active={activePieces.includes(n)} onStatusChange={handlePieceStatus}
+            onComplete={handlePieceComplete} />
         ))}
       </div>
 
-      {allDone && (
-        <div className="mt-6 fade-in space-y-4">
-          <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-5 text-center">
-            <h3 className="font-display font-bold text-lg text-emerald-800 mb-1">✅ 5/5 Roteiros finalizados!</h3>
-            <p className="text-sm text-emerald-600">{projectName} — {formatTimer(totalTimer)}</p>
-          </div>
-
-          {/* Próximos agentes — placeholder visual */}
-          <div className="space-y-3">
-            {[
-              { n: '04', name: 'Diretor Criativo', desc: 'Definindo formatos, IAs e prompts...', icon: '🎨' },
-              { n: '05', name: 'Executor Criativo', desc: 'Gerando criativos via Flux Pro, Recraft, Kling, Minimax, Luma...', icon: '⚡' },
-              { n: '06', name: 'Validador do Criativo', desc: 'Validação final dos arquivos gerados...', icon: '🏆' },
-            ].map(a => (
-              <div key={a.n} className="bg-white rounded-xl border border-gray-200 p-5 opacity-60">
-                <div className="flex items-center gap-4">
-                  <div className="w-10 h-10 rounded-xl flex items-center justify-center text-lg bg-gray-100 flex-shrink-0">{a.icon}</div>
-                  <div className="flex-1">
-                    <div className="flex items-center gap-2">
-                      <span className="text-[10px] font-mono bg-gray-100 text-gray-500 px-1.5 py-0.5 rounded">#{a.n}</span>
-                      <h3 className="font-display font-bold">{a.name}</h3>
-                    </div>
-                    <p className="text-sm text-gray-400 mt-1">{a.desc}</p>
-                  </div>
-                  <span className="text-xs bg-yellow-100 text-yellow-700 px-3 py-1 rounded-full">Em breve</span>
-                </div>
+      {/* Agent 04: Direction */}
+      {allRoteiros && (
+        <div className="mb-6 fade-in">
+          <h3 className="font-display font-bold text-sm text-gray-500 mb-3 uppercase tracking-wider">Agente 04 — Diretor Criativo</h3>
+          <AgentCard number="04" name="Diretor Criativo" icon="🎨" status={dirStatus}
+            description="Gerando prompts de IA para cada cena..." timer={dirTimer}>
+            {direction && (
+              <div className="px-5 py-3 bg-emerald-50 text-sm text-emerald-700">
+                ✅ {(direction.pieces || []).length} peças com prompts gerados
               </div>
-            ))}
-          </div>
+            )}
+          </AgentCard>
+        </div>
+      )}
 
-          <div className="text-center pt-2">
-            <p className="text-sm text-gray-500 mb-3">Agentes 04–06 serão conectados em breve.</p>
-            <button onClick={onReset} className="border border-gray-300 text-gray-600 px-4 py-2.5 rounded-lg text-sm hover:bg-gray-50">
-              ← Novo Briefing
-            </button>
+      {/* Agent 05: Creatives */}
+      {phase === 'creatives' || phase === 'validation' || phase === 'done' ? (
+        <div className="mb-6 fade-in">
+          <h3 className="font-display font-bold text-sm text-gray-500 mb-3 uppercase tracking-wider">Agente 05 — Executor Criativo</h3>
+          <AgentCard number="05" name="Executor Criativo" icon="⚡" status={genStatus}
+            description={genProgress || 'Gerando imagens...'} timer={genTimer}>
+            {generatedImages.length > 0 && (
+              <div className="px-5 py-3">
+                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
+                  {generatedImages.filter(i => i.url).map((img, idx) => (
+                    <div key={idx} className="relative group">
+                      <img src={img.url} alt={`P${img.piece} C${img.scene}`}
+                        className="w-full aspect-[9/16] object-cover rounded-lg border border-gray-200" />
+                      <div className="absolute bottom-0 left-0 right-0 bg-black/60 text-white text-[10px] px-2 py-1 rounded-b-lg">
+                        P{img.piece} C{img.scene} — {img.engine === 'flux' ? 'Flux Pro' : 'Recraft'}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+                <p className="text-xs text-gray-500 mt-2">{generatedImages.filter(i => i.url).length} imagens geradas</p>
+              </div>
+            )}
+          </AgentCard>
+        </div>
+      ) : null}
+
+      {/* Agent 06: Validation */}
+      {phase === 'validation' || phase === 'done' ? (
+        <div className="mb-6 fade-in">
+          <h3 className="font-display font-bold text-sm text-gray-500 mb-3 uppercase tracking-wider">Agente 06 — Validador Final</h3>
+          <AgentCard number="06" name="Validador do Criativo" icon="🏆" status={valStatus}
+            description="Validando criativos gerados..." timer={valTimer}>
+            {finalValidation && (
+              <div className={`px-5 py-3 text-sm ${finalValidation.approved ? 'bg-emerald-50 text-emerald-700' : 'bg-red-50 text-red-700'}`}>
+                <strong>{finalValidation.approved ? '✅' : '❌'}</strong> {finalValidation.summary}
+                {finalValidation.recommendation && (
+                  <p className="mt-1 text-xs opacity-80">{finalValidation.recommendation}</p>
+                )}
+              </div>
+            )}
+          </AgentCard>
+        </div>
+      ) : null}
+
+      {/* Done */}
+      {phase === 'done' && (
+        <div className="mt-6 bg-sea-dark rounded-xl p-6 text-white text-center fade-in">
+          <div className="text-4xl mb-3">🎉</div>
+          <h3 className="font-display font-bold text-xl mb-2">Pacote de criativos completo!</h3>
+          <p className="text-white/60 text-sm mb-2">{projectName}</p>
+          <div className="grid grid-cols-3 gap-4 max-w-md mx-auto mb-4">
+            <div className="bg-white/10 rounded-lg p-3">
+              <p className="text-lg font-bold">5</p>
+              <p className="text-[10px] text-white/50">Roteiros</p>
+            </div>
+            <div className="bg-white/10 rounded-lg p-3">
+              <p className="text-lg font-bold">{generatedImages.filter(i => i.url).length}</p>
+              <p className="text-[10px] text-white/50">Imagens geradas</p>
+            </div>
+            <div className="bg-white/10 rounded-lg p-3">
+              <p className="text-lg font-bold">2</p>
+              <p className="text-[10px] text-white/50">IAs usadas</p>
+            </div>
           </div>
+          <button onClick={onReset} className="bg-sea-coral hover:bg-sea-coral/90 text-white font-bold px-6 py-2.5 rounded-lg text-sm">
+            Novo Briefing
+          </button>
         </div>
       )}
     </div>
@@ -641,7 +858,7 @@ function Step3_Pipeline({ data, onReset }) {
 }
 
 // Wrapper to observe status changes — with auto-fix on rejection (max 2 retries)
-function PieceCardWrapper({ pieceNumber, briefing, active, onStatusChange }) {
+function PieceCardWrapper({ pieceNumber, briefing, active, onStatusChange, onComplete }) {
   const [status, setStatus] = useState('idle');
   const [text, setText] = useState('');
   const [validation, setValidation] = useState(null);
@@ -668,6 +885,9 @@ function PieceCardWrapper({ pieceNumber, briefing, active, onStatusChange }) {
   useEffect(() => {
     if (status === 'approved' || status === 'error') {
       onStatusChange(pieceNumber, status);
+      if (status === 'approved' && onComplete) {
+        onComplete(pieceNumber, textRef.current);
+      }
     }
   }, [status]);
 
