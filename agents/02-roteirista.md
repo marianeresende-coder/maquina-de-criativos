@@ -5,6 +5,13 @@ Recebe o briefing validado pelo Agente 01 e cria roteiros completos,
 prontos para produção, para 5 peças criativas. Cada roteiro é detalhado
 cena por cena, com campos de Cena, Lettering e Roteiro.
 
+**IMPORTANTE — Execução em 2 partes para performance:**
+- **Parte A**: Peças 1, 2 e 3 (vídeos com apresentadora + vídeo narrado 30s)
+- **Parte B**: Peças 4 e 5 (vídeo narrado 15s + peça estática)
+
+Salvar cada parte em arquivo separado (`outputs/02a-roteiros.md` e `outputs/02b-roteiros.md`),
+depois consolidar em `outputs/02-roteiros.md` para o Agente 03.
+
 ---
 
 ## Input
@@ -35,18 +42,22 @@ Com base no briefing, o agente decide SOZINHO:
 
 Decisões devem ser JUSTIFICADAS pelo briefing (não por achismo).
 
-### 3. Geração das 5 peças
-Cria os roteiros completos, cena por cena.
+### 3. Geração das peças (em 2 partes)
+**Parte A** → Peças 1, 2 e 3 → salvar em `outputs/02a-roteiros.md`
+**Parte B** → Peças 4 e 5 → salvar em `outputs/02b-roteiros.md`
 
 ---
 
 ## Peças a entregar
 
-### PEÇA 1 — Vídeo com Apresentadora (30s)
-### PEÇA 2 — Vídeo com Apresentadora (15s)
-### PEÇA 3 — Vídeo Narrado (30s)
-### PEÇA 4 — Vídeo Narrado (15s)
-### PEÇA 5 — Peça Estática
+### PARTE A
+- PEÇA 1 — Vídeo com Apresentadora (30s)
+- PEÇA 2 — Vídeo com Apresentadora (15s)
+- PEÇA 3 — Vídeo Narrado (30s)
+
+### PARTE B
+- PEÇA 4 — Vídeo Narrado (15s)
+- PEÇA 5 — Peça Estática
 
 ---
 
@@ -148,19 +159,17 @@ PEÇA ESTÁTICA
 Empreendimento: [nome do projeto]
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-  Conceito: [descrição detalhada da imagem — o que aparece, composição,
-            elementos visuais, estilo, referências. Específico o suficiente
-            pra um designer ou ferramenta de IA executar]
-  Texto principal: [headline — frase de impacto principal]
-  Texto secundário: [subtexto, dado de suporte ou CTA]
+  Headline: [frase de impacto com dado financeiro]
+  Subtexto: [dado de suporte ou CTA]
+  Visual: [descrição objetiva da imagem — 2 a 3 frases]
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 ```
 
 ### Regras para peça estática:
 - Deve funcionar sozinha (sem contexto de vídeo)
-- Headline impactante com dado financeiro
-- Visual alinhado com instruções visuais obrigatórias do briefing
-- Incluir pelo menos 2 pontos fortes do briefing
+- Headline com dado financeiro do briefing
+- Incluir pelo menos 2 pontos fortes
+- Visual alinhado com instruções visuais do briefing
 
 ---
 
@@ -178,19 +187,30 @@ Empreendimento: [nome do projeto]
 
 ## Output
 
-O Agente 02 entrega um documento único com as 5 peças completas,
-prontas para o Agente 03 validar. Cada peça segue exatamente o formato
-definido acima, sem exceção.
+O Agente 02 entrega em 2 etapas, depois consolida:
 
+**Etapa 1 → `outputs/02a-roteiros.md`**
 ```
-ROTEIROS — [Nome do Empreendimento]
+ROTEIROS PARTE A — [Nome do Empreendimento]
 Gerado pelo Agente 02 — Roteirista
 
 1. Vídeo com Apresentadora (30s) .......... [X cenas]
 2. Vídeo com Apresentadora (15s) .......... [X cenas]
 3. Vídeo Narrado (30s) .................... [X cenas]
+
+[roteiros completos abaixo]
+```
+
+**Etapa 2 → `outputs/02b-roteiros.md`**
+```
+ROTEIROS PARTE B — [Nome do Empreendimento]
+Gerado pelo Agente 02 — Roteirista
+
 4. Vídeo Narrado (15s) .................... [X cenas]
 5. Peça Estática .......................... [1 peça]
 
 [roteiros completos abaixo]
 ```
+
+**Consolidação → `outputs/02-roteiros.md`**
+Juntar Parte A + Parte B no arquivo final para o Agente 03.
