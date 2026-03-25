@@ -1,5 +1,3 @@
-const Anthropic = require("@anthropic-ai/sdk");
-
 const SYSTEM_PROMPT = `Você é o Agente 02 — Roteirista da Máquina de Criativos Seazone.
 
 # CONTEXTO SEAZONE
@@ -154,13 +152,12 @@ module.exports = async function handler(req, res) {
     return res.status(400).json({ error: "briefing and pieceNumber (1-5) required" });
   }
 
-  const apiKey = process.env.ANTHROPIC_API_KEY;
+  const apiKey = process.env.OPENROUTER_API_KEY;
   if (!apiKey) {
-    return res.status(500).json({ error: "ANTHROPIC_API_KEY not configured" });
+    return res.status(500).json({ error: "OPENROUTER_API_KEY not configured" });
   }
 
   const briefingText = typeof briefing === "string" ? briefing : JSON.stringify(briefing, null, 2);
-
   const piecePrompt = PIECE_PROMPTS[pieceNumber];
   const userMessage = `# BRIEFING DO EMPREENDIMENTO\n\n${briefingText}\n\n---\n\n${piecePrompt}`;
 
@@ -171,22 +168,59 @@ module.exports = async function handler(req, res) {
   res.setHeader("Access-Control-Allow-Origin", "*");
 
   try {
-    const client = new Anthropic({ apiKey });
-
-    const stream = await client.messages.stream({
-      model: "claude-sonnet-4-20250514",
-      max_tokens: 2000,
-      system: SYSTEM_PROMPT,
-      messages: [{ role: "user", content: userMessage }],
+    const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        "Authorization": `Bearer ${apiKey}`,
+        "Content-Type": "application/json",
+        "HTTP-Referer": "https://maquina-de-criativos.vercel.app",
+        "X-Title": "Maquina de Criativos Seazone",
+      },
+      body: JSON.stringify({
+        model: "anthropic/claude-sonnet-4",
+        max_tokens: 2000,
+        stream: true,
+        messages: [
+          { role: "system", content: SYSTEM_PROMPT },
+          { role: "user", content: userMessage },
+        ],
+      }),
     });
 
-    for await (const event of stream) {
-      if (
-        event.type === "content_block_delta" &&
-        event.delta.type === "text_delta"
-      ) {
-        const data = JSON.stringify({ text: event.delta.text });
-        res.write(`data: ${data}\n\n`);
+    if (!response.ok) {
+      const errText = await response.text();
+      res.write(`data: ${JSON.stringify({ error: `${response.status} ${errText}` })}\n\n`);
+      res.end();
+      return;
+    }
+
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = "";
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+
+      buffer += decoder.decode(value, { stream: true });
+      const lines = buffer.split("\n");
+      buffer = lines.pop() || "";
+
+      for (const line of lines) {
+        if (line.startsWith("data: ")) {
+          const dataStr = line.slice(6).trim();
+          if (dataStr === "[DONE]") {
+            res.write(`data: ${JSON.stringify({ done: true })}\n\n`);
+            continue;
+          }
+          try {
+            const parsed = JSON.parse(dataStr);
+            const content = parsed.choices?.[0]?.delta?.content;
+            if (content) {
+              res.write(`data: ${JSON.stringify({ text: content })}\n\n`);
+            }
+          } catch {}
+        }
       }
     }
 

@@ -1,5 +1,3 @@
-const Anthropic = require("@anthropic-ai/sdk");
-
 const SYSTEM_PROMPT = `Você é o Agente 03 — Validador de Roteiro da Máquina de Criativos Seazone.
 
 Sua tarefa é validar UM roteiro de peça criativa contra o briefing original.
@@ -39,31 +37,43 @@ module.exports = async function handler(req, res) {
     return res.status(400).json({ error: "briefing, roteiro and pieceNumber required" });
   }
 
-  const apiKey = process.env.ANTHROPIC_API_KEY;
+  const apiKey = process.env.OPENROUTER_API_KEY;
   if (!apiKey) {
-    return res.status(500).json({ error: "ANTHROPIC_API_KEY not configured" });
+    return res.status(500).json({ error: "OPENROUTER_API_KEY not configured" });
   }
 
   const briefingText = typeof briefing === "string" ? briefing : JSON.stringify(briefing, null, 2);
-
   const userMessage = `# BRIEFING\n\n${briefingText}\n\n---\n\n# ROTEIRO DA PEÇA ${pieceNumber} PARA VALIDAR\n\n${roteiro}`;
 
   try {
-    const client = new Anthropic({ apiKey });
-
-    const response = await client.messages.create({
-      model: "claude-sonnet-4-20250514",
-      max_tokens: 1000,
-      system: SYSTEM_PROMPT,
-      messages: [{ role: "user", content: userMessage }],
+    const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        "Authorization": `Bearer ${apiKey}`,
+        "Content-Type": "application/json",
+        "HTTP-Referer": "https://maquina-de-criativos.vercel.app",
+        "X-Title": "Maquina de Criativos Seazone",
+      },
+      body: JSON.stringify({
+        model: "anthropic/claude-sonnet-4",
+        max_tokens: 1000,
+        messages: [
+          { role: "system", content: SYSTEM_PROMPT },
+          { role: "user", content: userMessage },
+        ],
+      }),
     });
 
-    const text = response.content[0].text.trim();
+    if (!response.ok) {
+      const errText = await response.text();
+      return res.status(response.status).json({ error: errText });
+    }
 
-    // Try to parse JSON response
+    const data = await response.json();
+    const text = data.choices?.[0]?.message?.content?.trim() || "";
+
     let result;
     try {
-      // Extract JSON if wrapped in markdown code block
       const jsonMatch = text.match(/\{[\s\S]*\}/);
       result = JSON.parse(jsonMatch ? jsonMatch[0] : text);
     } catch {
