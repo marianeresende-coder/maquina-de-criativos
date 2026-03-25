@@ -166,31 +166,13 @@ Empreendimento: [nome do projeto]
 
 ## Regras gerais (todas as 5 peças)
 
-### Obrigatório em TODAS as peças:
-- [ ] Seguir a hierarquia dos pontos fortes (posição 1→5 do briefing)
-- [ ] Incluir TODOS os pontos fortes obrigatórios da seção `estrutura_criativos`
-- [ ] Respeitar TODOS os DO's
-- [ ] Não violar NENHUM DON'T
-- [ ] Seguir TODAS as instruções visuais obrigatórias
-- [ ] Pin de SPOT presente em cenas de localização/fachada
-- [ ] CTA claro no final de cada peça
-- [ ] Dados financeiros exatos do briefing (NUNCA inventar ou arredondar)
-
-### Proibido:
-- Inventar dados que não estão no briefing
-- Violar qualquer DON'T
-- Ignorar instruções visuais obrigatórias
-- Posicionar Monica como qualquer coisa diferente de sócia fundadora
-- Usar efeitos que escureçam a imagem
-- Colocar molduras ou borrar laterais
-- Transições com efeitos dramáticos/escuros
-
-### Tom de voz:
-- Profissional, acessível, orientado a resultados
-- Dados concretos como prova (não superlativos vazios)
-- Confiante sem ser agressivo
-- Frases curtas e impactantes
+- Seguir hierarquia dos pontos fortes (posição 1→5 do briefing)
+- Incluir pontos fortes obrigatórios da seção `estrutura_criativos`
+- Respeitar DO's e DON'Ts do briefing
+- Dados financeiros exatos (NUNCA inventar ou arredondar)
+- CTA claro no final de cada peça
 - Lettering: máximo 7 palavras por tela
+- Demais regras visuais, tom de voz e proibições: seguir CLAUDE.md
 
 ---
 
