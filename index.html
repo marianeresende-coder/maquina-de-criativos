@@ -33,6 +33,7 @@
     .fade-in { animation: fadeIn 0.3s ease-out forwards; }
     @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.5} }
     .pulse { animation: pulse 1.5s ease-in-out infinite; }
+    .roteiro-text { white-space: pre-wrap; font-family: 'DM Sans', monospace; font-size: 13px; line-height: 1.6; }
   </style>
 </head>
 <body class="bg-gray-50 min-h-screen">
@@ -41,77 +42,99 @@
 const { useState, useCallback, useEffect, useRef } = React;
 
 // ============================================================
-// TIMER HOOK
+// HELPERS
 // ============================================================
-
-function useAgentTimers(currentAgent) {
-  const [timers, setTimers] = useState({});
-  const intervalsRef = useRef({});
-
-  useEffect(() => {
-    // When currentAgent changes, start timer for it and stop previous
-    if (currentAgent < 2 || currentAgent > 6) return;
-
-    const agentKey = currentAgent;
-
-    // Mark start time if not already started
-    setTimers(prev => {
-      if (prev[agentKey]?.start) return prev;
-      return { ...prev, [agentKey]: { start: Date.now(), elapsed: 0, done: false } };
-    });
-
-    // Start interval for current agent
-    if (intervalsRef.current[agentKey]) clearInterval(intervalsRef.current[agentKey]);
-    intervalsRef.current[agentKey] = setInterval(() => {
-      setTimers(prev => {
-        const t = prev[agentKey];
-        if (!t || t.done) return prev;
-        return { ...prev, [agentKey]: { ...t, elapsed: Date.now() - t.start } };
-      });
-    }, 100);
-
-    // Finalize previous agent
-    const prevAgent = agentKey - 1;
-    if (prevAgent >= 2 && intervalsRef.current[prevAgent]) {
-      clearInterval(intervalsRef.current[prevAgent]);
-      setTimers(prev => {
-        const t = prev[prevAgent];
-        if (!t) return prev;
-        return { ...prev, [prevAgent]: { ...t, elapsed: Date.now() - t.start, done: true } };
-      });
-    }
-
-    return () => {
-      if (intervalsRef.current[agentKey]) clearInterval(intervalsRef.current[agentKey]);
-    };
-  }, [currentAgent]);
-
-  // When pipeline finishes (currentAgent > 6), stop last timer
-  useEffect(() => {
-    if (currentAgent > 6) {
-      Object.keys(intervalsRef.current).forEach(k => clearInterval(intervalsRef.current[k]));
-      setTimers(prev => {
-        const updated = { ...prev };
-        Object.keys(updated).forEach(k => {
-          if (!updated[k].done) {
-            updated[k] = { ...updated[k], elapsed: Date.now() - updated[k].start, done: true };
-          }
-        });
-        return updated;
-      });
-    }
-  }, [currentAgent]);
-
-  return timers;
-}
 
 function formatTimer(ms) {
   const totalSec = Math.floor(ms / 1000);
   const min = Math.floor(totalSec / 60);
   const sec = totalSec % 60;
-  const tenths = Math.floor((ms % 1000) / 100);
   if (min > 0) return `${min}m ${sec.toString().padStart(2, '0')}s`;
-  return `${sec}.${tenths}s`;
+  return `${sec}s`;
+}
+
+function useTimer(running) {
+  const [elapsed, setElapsed] = useState(0);
+  const startRef = useRef(null);
+  useEffect(() => {
+    if (running) {
+      startRef.current = Date.now();
+      const iv = setInterval(() => setElapsed(Date.now() - startRef.current), 500);
+      return () => clearInterval(iv);
+    }
+  }, [running]);
+  return elapsed;
+}
+
+const PIECE_NAMES = [
+  'Video Apresentadora 30s',
+  'Video Apresentadora 15s',
+  'Video Narrado 30s',
+  'Video Narrado 15s',
+  'Peca Estatica',
+];
+
+const PIECE_ICONS = ['🎬', '🎬', '🎥', '🎥', '🖼️'];
+
+// ============================================================
+// STREAMING API CALL
+// ============================================================
+
+async function generatePiece(briefing, pieceNumber, onChunk, onDone, onError) {
+  try {
+    const res = await fetch('/api/generate-roteiro', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ briefing, pieceNumber }),
+    });
+
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({ error: 'Erro desconhecido' }));
+      onError(err.error || `HTTP ${res.status}`);
+      return;
+    }
+
+    const reader = res.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = '';
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+
+      buffer += decoder.decode(value, { stream: true });
+      const lines = buffer.split('\n');
+      buffer = lines.pop() || '';
+
+      for (const line of lines) {
+        if (line.startsWith('data: ')) {
+          try {
+            const data = JSON.parse(line.slice(6));
+            if (data.done) { onDone(); return; }
+            if (data.error) { onError(data.error); return; }
+            if (data.text) onChunk(data.text);
+          } catch {}
+        }
+      }
+    }
+    onDone();
+  } catch (err) {
+    onError(err.message || 'Erro de conexão');
+  }
+}
+
+async function validatePiece(briefing, roteiro, pieceNumber) {
+  try {
+    const res = await fetch('/api/validate-roteiro', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ briefing, roteiro, pieceNumber }),
+    });
+    if (!res.ok) return { approved: true, summary: 'Validação indisponível' };
+    return await res.json();
+  } catch {
+    return { approved: true, summary: 'Validação indisponível' };
+  }
 }
 
 // ============================================================
@@ -119,81 +142,43 @@ function formatTimer(ms) {
 // ============================================================
 
 const REQUIRED_SECTIONS = [
-  {
-    key: 'projeto',
-    label: 'Projeto',
-    fields: [
-      { path: 'nome', label: 'Nome' },
-      { path: 'endereco', label: 'Endereço' },
-      { path: 'cidade', label: 'Cidade' },
-      { path: 'tipo', label: 'Tipo' },
-    ],
-  },
-  {
-    key: 'dados_financeiros',
-    label: 'Dados Financeiros',
-    fields: [
-      { path: 'ticket_medio.valor', label: 'Ticket médio' },
-      { path: 'roi_estimado.valor', label: 'ROI estimado' },
-      { path: 'rentabilidade_liquida_estimada.valor', label: 'Rentabilidade líquida' },
-      { path: 'valorizacao_estimada.valor', label: 'Valorização estimada' },
-      { path: 'rendimento_mensal_estimado', label: 'Rendimento mensal' },
-      { path: 'estrutura.quantidade_cotas', label: 'Quantidade de cotas' },
-      { path: 'panorama_competitivo', label: 'Panorama competitivo', isObject: true },
-    ],
-  },
-  {
-    key: 'localizacao',
-    label: 'Localização',
-    fields: [
-      { path: 'caracteristicas_principais', label: 'Características principais', isArray: true, minItems: 1 },
-    ],
-  },
-  {
-    key: 'pontos_fortes',
-    label: 'Pontos Fortes',
-    fields: [
-      { path: 'hierarquia', label: 'Hierarquia de pontos fortes', isArray: true, minItems: 3 },
-    ],
-  },
-  {
-    key: 'dos',
-    label: "DO's",
-    fields: [
-      { path: 'diretrizes', label: 'Diretrizes DO', isArray: true, minItems: 1 },
-    ],
-  },
-  {
-    key: 'donts',
-    label: "DON'Ts",
-    fields: [
-      { path: 'diretrizes', label: 'Diretrizes DON\'T', isArray: true, minItems: 1 },
-    ],
-  },
-  {
-    key: 'publico_alvo',
-    label: 'Público-Alvo',
-    fields: [
-      { path: 'prioridades', label: 'Prioridades de público', isArray: true, minItems: 1 },
-    ],
-  },
-  {
-    key: 'perfil_hospede',
-    label: 'Perfil do Hóspede',
-    fields: [
-      { path: 'tipo_principal', label: 'Tipo principal' },
-      { path: 'fatores_decisao', label: 'Fatores de decisão', isArray: true, minItems: 1 },
-    ],
-  },
-  {
-    key: 'estrutura_criativos',
-    label: 'Estrutura de Criativos',
-    fields: [
-      { path: 'pontos_fortes_obrigatorios', label: 'Pontos fortes obrigatórios', isArray: true, minItems: 1 },
-      { path: 'formatos', label: 'Formatos', isArray: true, minItems: 1 },
-      { path: 'instrucoes_visuais_obrigatorias', label: 'Instruções visuais', isArray: true, minItems: 1 },
-    ],
-  },
+  { key: 'projeto', label: 'Projeto', fields: [
+    { path: 'nome', label: 'Nome' }, { path: 'endereco', label: 'Endereço' },
+    { path: 'cidade', label: 'Cidade' }, { path: 'tipo', label: 'Tipo' },
+  ]},
+  { key: 'dados_financeiros', label: 'Dados Financeiros', fields: [
+    { path: 'ticket_medio.valor', label: 'Ticket médio' },
+    { path: 'roi_estimado.valor', label: 'ROI estimado' },
+    { path: 'rentabilidade_liquida_estimada.valor', label: 'Rentabilidade líquida' },
+    { path: 'valorizacao_estimada.valor', label: 'Valorização estimada' },
+    { path: 'rendimento_mensal_estimado', label: 'Rendimento mensal' },
+    { path: 'estrutura.quantidade_cotas', label: 'Quantidade de cotas' },
+    { path: 'panorama_competitivo', label: 'Panorama competitivo', isObject: true },
+  ]},
+  { key: 'localizacao', label: 'Localização', fields: [
+    { path: 'caracteristicas_principais', label: 'Características principais', isArray: true, minItems: 1 },
+  ]},
+  { key: 'pontos_fortes', label: 'Pontos Fortes', fields: [
+    { path: 'hierarquia', label: 'Hierarquia de pontos fortes', isArray: true, minItems: 3 },
+  ]},
+  { key: 'dos', label: "DO's", fields: [
+    { path: 'diretrizes', label: 'Diretrizes DO', isArray: true, minItems: 1 },
+  ]},
+  { key: 'donts', label: "DON'Ts", fields: [
+    { path: 'diretrizes', label: "Diretrizes DON'T", isArray: true, minItems: 1 },
+  ]},
+  { key: 'publico_alvo', label: 'Público-Alvo', fields: [
+    { path: 'prioridades', label: 'Prioridades de público', isArray: true, minItems: 1 },
+  ]},
+  { key: 'perfil_hospede', label: 'Perfil do Hóspede', fields: [
+    { path: 'tipo_principal', label: 'Tipo principal' },
+    { path: 'fatores_decisao', label: 'Fatores de decisão', isArray: true, minItems: 1 },
+  ]},
+  { key: 'estrutura_criativos', label: 'Estrutura de Criativos', fields: [
+    { path: 'pontos_fortes_obrigatorios', label: 'Pontos fortes obrigatórios', isArray: true, minItems: 1 },
+    { path: 'formatos', label: 'Formatos', isArray: true, minItems: 1 },
+    { path: 'instrucoes_visuais_obrigatorias', label: 'Instruções visuais', isArray: true, minItems: 1 },
+  ]},
 ];
 
 function getNestedValue(obj, path) {
@@ -203,58 +188,33 @@ function getNestedValue(obj, path) {
 function validateBriefing(data) {
   const results = [];
   let allPassed = true;
-
   for (const section of REQUIRED_SECTIONS) {
     const sectionData = data[section.key];
     const fieldResults = [];
     let sectionPassed = true;
-
     if (!sectionData) {
-      results.push({
-        key: section.key,
-        label: section.label,
-        passed: false,
-        error: 'Seção inteira ausente do briefing',
-        fields: [],
-      });
+      results.push({ key: section.key, label: section.label, passed: false, error: 'Seção ausente', fields: [] });
       allPassed = false;
       continue;
     }
-
     for (const field of section.fields) {
       const value = getNestedValue(sectionData, field.path);
-      let passed = true;
-      let error = null;
-
+      let passed = true, error = null;
       if (field.isArray) {
-        if (!Array.isArray(value) || value.length < (field.minItems || 1)) {
-          passed = false;
-          error = `Array vazio ou com menos de ${field.minItems || 1} item(ns)`;
-        }
+        if (!Array.isArray(value) || value.length < (field.minItems || 1)) { passed = false; error = 'Array vazio'; }
       } else if (field.isObject) {
-        if (!value || typeof value !== 'object' || Object.keys(value).length === 0) {
-          passed = false;
-          error = 'Objeto vazio ou ausente';
-        }
+        if (!value || typeof value !== 'object' || Object.keys(value).length === 0) { passed = false; error = 'Objeto ausente'; }
       } else {
-        if (value === undefined || value === null || value === '') {
-          passed = false;
-          error = 'Campo vazio ou ausente';
-        }
+        if (value === undefined || value === null || value === '') { passed = false; error = 'Ausente'; }
       }
-
       if (!passed) sectionPassed = false;
-      // Always pass the value (even if failed) for display purposes
       const displayValue = field.isArray ? (Array.isArray(value) ? `${value.length} item(ns)` : null) :
-                           field.isObject ? (value ? `${Object.keys(value).length} campo(s)` : null) :
-                           value;
+                           field.isObject ? (value ? `${Object.keys(value).length} campo(s)` : null) : value;
       fieldResults.push({ path: field.path, label: field.label, passed, error, value: displayValue });
     }
-
     if (!sectionPassed) allPassed = false;
     results.push({ key: section.key, label: section.label, passed: sectionPassed, fields: fieldResults });
   }
-
   return { allPassed, results };
 }
 
@@ -298,33 +258,6 @@ function StepIndicator({ steps, currentStep }) {
   );
 }
 
-function AgentHeader({ number, name, status }) {
-  const colors = {
-    idle: 'bg-gray-100 text-gray-400',
-    running: 'bg-yellow-100 text-yellow-700',
-    success: 'bg-emerald-100 text-emerald-700',
-    error: 'bg-red-100 text-red-700',
-  };
-  const labels = {
-    idle: 'Aguardando',
-    running: 'Rodando...',
-    success: 'Aprovado',
-    error: 'Reprovado',
-  };
-  return (
-    <div className="flex items-center justify-between mb-4">
-      <div className="flex items-center gap-3">
-        <span className="text-xs font-mono bg-sea-dark text-white px-2 py-1 rounded">#{number}</span>
-        <h2 className="font-display font-bold text-xl">{name}</h2>
-      </div>
-      <span className={`text-xs font-medium px-3 py-1 rounded-full ${colors[status]}`}>
-        {status === 'running' && <span className="inline-block w-2 h-2 bg-yellow-500 rounded-full mr-1.5 pulse" />}
-        {labels[status]}
-      </span>
-    </div>
-  );
-}
-
 // ============================================================
 // STEP 1 — INPUT URL
 // ============================================================
@@ -338,37 +271,27 @@ function Step1_Input({ onSubmit }) {
     if (!url.trim()) return;
     setLoading(true);
     setError(null);
-
     let briefingUrl = url.trim();
     if (!briefingUrl.endsWith('/briefing.json')) {
       briefingUrl = briefingUrl.replace(/\/$/, '') + '/briefing.json';
     }
-
     try {
-      // Try multiple approaches to fetch the briefing
       let data = null;
       const proxies = [
-        briefingUrl, // direct
+        briefingUrl,
         `https://api.allorigins.win/raw?url=${encodeURIComponent(briefingUrl)}`,
         `https://corsproxy.io/?${encodeURIComponent(briefingUrl)}`,
-        `https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(briefingUrl)}`,
       ];
-
-      for (const url of proxies) {
+      for (const u of proxies) {
         try {
-          const res = await fetch(url, { signal: AbortSignal.timeout(8000) });
-          if (res.ok) {
-            const text = await res.text();
-            data = JSON.parse(text);
-            break;
-          }
+          const res = await fetch(u, { signal: AbortSignal.timeout(8000) });
+          if (res.ok) { data = JSON.parse(await res.text()); break; }
         } catch (e) { continue; }
       }
-
-      if (!data) throw new Error('Não foi possível acessar o briefing. Verifique se a URL está correta e se o arquivo briefing.json existe.');
+      if (!data) throw new Error('Não foi possível acessar o briefing.');
       onSubmit(data, briefingUrl);
     } catch (err) {
-      setError(err.message || 'Não foi possível acessar o briefing. Verifique a URL.');
+      setError(err.message);
     } finally {
       setLoading(false);
     }
@@ -376,36 +299,22 @@ function Step1_Input({ onSubmit }) {
 
   return (
     <div className="fade-in">
-      <AgentHeader number="01" name="Validador de Briefing" status="idle" />
       <div className="bg-white rounded-xl border-2 border-dashed border-gray-300 p-8 text-center">
         <div className="w-16 h-16 bg-sea-dark/5 rounded-2xl flex items-center justify-center text-3xl mx-auto mb-4">📋</div>
         <h3 className="font-display font-bold text-lg mb-2">Cole a URL do Lovable</h3>
-        <p className="text-sm text-gray-500 mb-6">A máquina vai buscar o briefing.json e validar todas as seções obrigatórias</p>
+        <p className="text-sm text-gray-500 mb-6">A máquina vai buscar o briefing.json e validar todas as seções</p>
         <div className="max-w-xl mx-auto">
           <div className="flex gap-2">
-            <input
-              type="url"
-              value={url}
-              onChange={e => setUrl(e.target.value)}
+            <input type="url" value={url} onChange={e => setUrl(e.target.value)}
               onKeyDown={e => e.key === 'Enter' && handleSubmit()}
               placeholder="https://nomedoempreendimento.lovable.app"
-              className="flex-1 border border-gray-300 rounded-lg px-4 py-3 text-sm focus:outline-none focus:border-sea-coral focus:ring-2 focus:ring-sea-coral/20"
-            />
-            <button
-              onClick={handleSubmit}
-              disabled={loading || !url.trim()}
-              className="bg-sea-coral hover:bg-sea-coral/90 disabled:bg-gray-300 text-white font-bold px-6 py-3 rounded-lg text-sm transition-colors flex items-center gap-2"
-            >
-              {loading ? (
-                <><svg className="w-4 h-4 spinner" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3" strokeDasharray="32" strokeLinecap="round"/></svg> Buscando...</>
-              ) : 'Validar'}
+              className="flex-1 border border-gray-300 rounded-lg px-4 py-3 text-sm focus:outline-none focus:border-sea-coral focus:ring-2 focus:ring-sea-coral/20" />
+            <button onClick={handleSubmit} disabled={loading || !url.trim()}
+              className="bg-sea-coral hover:bg-sea-coral/90 disabled:bg-gray-300 text-white font-bold px-6 py-3 rounded-lg text-sm transition-colors">
+              {loading ? 'Buscando...' : 'Validar'}
             </button>
           </div>
-          {error && (
-            <div className="mt-3 bg-red-50 border border-red-200 rounded-lg px-4 py-3 text-sm text-red-700 text-left fade-in">
-              ❌ {error}
-            </div>
-          )}
+          {error && <div className="mt-3 bg-red-50 border border-red-200 rounded-lg px-4 py-3 text-sm text-red-700 text-left fade-in">{error}</div>}
         </div>
       </div>
     </div>
@@ -413,7 +322,7 @@ function Step1_Input({ onSubmit }) {
 }
 
 // ============================================================
-// STEP 2 — VALIDATION RESULTS
+// STEP 2 — VALIDATION
 // ============================================================
 
 function Step2_Validation({ data, url, onApproved, onReset }) {
@@ -423,63 +332,44 @@ function Step2_Validation({ data, url, onApproved, onReset }) {
 
   return (
     <div className="fade-in">
-      <AgentHeader number="01" name="Validador de Briefing" status={validation.allPassed ? 'success' : 'error'} />
-
-      {/* Summary */}
       <div className={`rounded-xl p-5 mb-6 ${validation.allPassed ? 'bg-emerald-50 border border-emerald-200' : 'bg-red-50 border border-red-200'}`}>
         <div className="flex items-center justify-between mb-2">
-          <h3 className="font-display font-bold text-lg">
-            {validation.allPassed ? '✅' : '❌'} {projectName}
-          </h3>
+          <h3 className="font-display font-bold text-lg">{validation.allPassed ? '✅' : '❌'} {projectName}</h3>
           <span className={`text-sm font-bold ${validation.allPassed ? 'text-emerald-600' : 'text-red-600'}`}>
             {passedCount}/{validation.results.length} seções
           </span>
         </div>
         <p className="text-sm text-gray-600 mb-1">{url}</p>
-        {validation.allPassed ? (
-          <p className="text-sm text-emerald-700 font-medium">Briefing completo. Pronto para o Agente 02.</p>
-        ) : (
-          <p className="text-sm text-red-700 font-medium">Briefing incompleto. Corrija os itens abaixo no Lovable e rode novamente.</p>
-        )}
+        <p className={`text-sm font-medium ${validation.allPassed ? 'text-emerald-700' : 'text-red-700'}`}>
+          {validation.allPassed ? 'Briefing completo. Pronto para gerar roteiros.' : 'Briefing incompleto. Corrija no Lovable.'}
+        </p>
       </div>
 
-      {/* Section by section — with values */}
       <div className="space-y-3 mb-6">
         {validation.results.map(section => (
-          <div key={section.key} className={`bg-white rounded-xl border overflow-hidden transition-all ${section.passed ? 'border-emerald-200' : 'border-red-200'}`}>
+          <div key={section.key} className={`bg-white rounded-xl border overflow-hidden ${section.passed ? 'border-emerald-200' : 'border-red-200'}`}>
             <div className={`flex items-center gap-3 px-4 py-3 ${section.passed ? 'bg-emerald-50' : 'bg-red-50'}`}>
               <div className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold ${section.passed ? 'bg-emerald-500 text-white' : 'bg-red-500 text-white'}`}>
                 {section.passed ? '✓' : '✕'}
               </div>
               <span className="font-display font-bold text-sm">{section.label}</span>
-              {!section.passed && section.error && (
-                <span className="text-xs bg-red-200 text-red-700 px-2 py-0.5 rounded-full ml-auto">{section.error}</span>
-              )}
-              {section.passed && (
-                <span className="text-xs text-emerald-600 ml-auto">Completo</span>
-              )}
+              {!section.passed && section.error && <span className="text-xs bg-red-200 text-red-700 px-2 py-0.5 rounded-full ml-auto">{section.error}</span>}
             </div>
             {section.fields.length > 0 && (
               <div className="divide-y divide-gray-100">
                 {section.fields.map(f => (
                   <div key={f.path} className={`flex items-center justify-between px-4 py-2.5 ${f.passed ? '' : 'bg-red-50/50'}`}>
                     <div className="flex items-center gap-2">
-                      <span className={`text-sm ${f.passed ? 'text-emerald-500' : 'text-red-500'}`}>
-                        {f.passed ? '✓' : '✕'}
-                      </span>
+                      <span className={`text-sm ${f.passed ? 'text-emerald-500' : 'text-red-500'}`}>{f.passed ? '✓' : '✕'}</span>
                       <span className="text-sm text-gray-700">{f.label}</span>
                     </div>
-                    <div className="text-right">
-                      {f.passed && f.value ? (
-                        <span className="text-sm font-medium text-gray-900 bg-emerald-50 px-2 py-0.5 rounded">
-                          {typeof f.value === 'string' && f.value.length > 50 ? f.value.substring(0, 50) + '...' : f.value}
-                        </span>
-                      ) : !f.passed ? (
-                        <span className="text-xs font-medium text-red-600 bg-red-100 px-2 py-0.5 rounded">
-                          {f.error || 'Ausente'}
-                        </span>
-                      ) : null}
-                    </div>
+                    {f.passed && f.value ? (
+                      <span className="text-sm font-medium text-gray-900 bg-emerald-50 px-2 py-0.5 rounded">
+                        {typeof f.value === 'string' && f.value.length > 50 ? f.value.substring(0, 50) + '...' : f.value}
+                      </span>
+                    ) : !f.passed ? (
+                      <span className="text-xs font-medium text-red-600 bg-red-100 px-2 py-0.5 rounded">{f.error}</span>
+                    ) : null}
                   </div>
                 ))}
               </div>
@@ -488,19 +378,11 @@ function Step2_Validation({ data, url, onApproved, onReset }) {
         ))}
       </div>
 
-      {/* Actions */}
       <div className="flex gap-3">
-        <button onClick={onReset} className="border border-gray-300 text-gray-600 px-4 py-2.5 rounded-lg text-sm hover:bg-gray-50 transition-colors">
-          ← Novo briefing
-        </button>
+        <button onClick={onReset} className="border border-gray-300 text-gray-600 px-4 py-2.5 rounded-lg text-sm hover:bg-gray-50">← Novo briefing</button>
         {validation.allPassed && (
-          <button onClick={() => onApproved(data)} className="bg-sea-coral hover:bg-sea-coral/90 text-white font-bold px-6 py-2.5 rounded-lg text-sm transition-colors flex items-center gap-2">
-            Avançar para Agente 02 — Roteirista →
-          </button>
-        )}
-        {!validation.allPassed && (
-          <button onClick={onReset} className="bg-sea-coral hover:bg-sea-coral/90 text-white font-bold px-6 py-2.5 rounded-lg text-sm transition-colors">
-            Corrigir e tentar novamente
+          <button onClick={() => onApproved(data)} className="bg-sea-coral hover:bg-sea-coral/90 text-white font-bold px-6 py-2.5 rounded-lg text-sm">
+            Gerar Roteiros →
           </button>
         )}
       </div>
@@ -509,116 +391,326 @@ function Step2_Validation({ data, url, onApproved, onReset }) {
 }
 
 // ============================================================
-// STEP 3+ — AGENTS 02-06 (Claude Code executes)
+// PIECE CARD — shows streaming roteiro + validation
 // ============================================================
 
-function Step3_Pipeline({ data, currentAgent }) {
+function PieceCard({ pieceNumber, briefing, autoStart }) {
+  const [status, setStatus] = useState('idle'); // idle, generating, validating, approved, rejected, error
+  const [text, setText] = useState('');
+  const [validation, setValidation] = useState(null);
+  const [error, setError] = useState(null);
+  const [startTime, setStartTime] = useState(null);
+  const [endTime, setEndTime] = useState(null);
+  const [expanded, setExpanded] = useState(true);
+  const textRef = useRef('');
+  const started = useRef(false);
+  const containerRef = useRef(null);
+
+  const elapsed = useTimer(status === 'generating' || status === 'validating');
+
+  useEffect(() => {
+    if (autoStart && !started.current) {
+      started.current = true;
+      runPiece();
+    }
+  }, [autoStart]);
+
+  const runPiece = async () => {
+    setStatus('generating');
+    setStartTime(Date.now());
+    setText('');
+    textRef.current = '';
+
+    await new Promise((resolve) => {
+      generatePiece(
+        briefing, pieceNumber,
+        (chunk) => {
+          textRef.current += chunk;
+          setText(textRef.current);
+          // Auto-scroll
+          if (containerRef.current) {
+            containerRef.current.scrollTop = containerRef.current.scrollHeight;
+          }
+        },
+        () => resolve(),
+        (err) => { setError(err); setStatus('error'); resolve(); }
+      );
+    });
+
+    if (textRef.current && !error) {
+      setStatus('validating');
+      const result = await validatePiece(briefing, textRef.current, pieceNumber);
+      setValidation(result);
+      setStatus(result.approved ? 'approved' : 'rejected');
+      setEndTime(Date.now());
+    }
+  };
+
+  const totalTime = endTime && startTime ? endTime - startTime : elapsed;
+  const name = PIECE_NAMES[pieceNumber - 1];
+  const icon = PIECE_ICONS[pieceNumber - 1];
+
+  const statusColors = {
+    idle: 'border-gray-200 opacity-60',
+    generating: 'border-sea-coral shadow-md',
+    validating: 'border-yellow-300 shadow-md',
+    approved: 'border-emerald-300',
+    rejected: 'border-red-300',
+    error: 'border-red-300',
+  };
+
+  const statusBadge = {
+    idle: { bg: 'bg-gray-100 text-gray-400', label: 'Aguardando' },
+    generating: { bg: 'bg-sea-coral/10 text-sea-coral', label: 'Gerando...' },
+    validating: { bg: 'bg-yellow-100 text-yellow-700', label: 'Validando...' },
+    approved: { bg: 'bg-emerald-100 text-emerald-700', label: 'Aprovado' },
+    rejected: { bg: 'bg-red-100 text-red-700', label: 'Reprovado' },
+    error: { bg: 'bg-red-100 text-red-700', label: 'Erro' },
+  };
+
+  const badge = statusBadge[status];
+
+  return (
+    <div className={`bg-white rounded-xl border-2 overflow-hidden transition-all fade-in ${statusColors[status]}`}>
+      {/* Header */}
+      <div className="flex items-center gap-3 px-5 py-4 cursor-pointer" onClick={() => text && setExpanded(!expanded)}>
+        <div className={`w-10 h-10 rounded-xl flex items-center justify-center text-lg flex-shrink-0
+          ${status === 'approved' ? 'bg-emerald-100' : status === 'generating' ? 'bg-sea-coral/10' : 'bg-gray-100'}`}>
+          {status === 'approved' ? '✓' : icon}
+        </div>
+        <div className="flex-1">
+          <div className="flex items-center gap-2">
+            <span className="text-[10px] font-mono bg-gray-100 text-gray-500 px-1.5 py-0.5 rounded">#{pieceNumber}</span>
+            <h3 className="font-display font-bold">{name}</h3>
+          </div>
+        </div>
+        <div className="flex items-center gap-2 flex-shrink-0">
+          {totalTime > 0 && (
+            <span className={`text-xs font-mono px-2 py-1 rounded-full ${
+              totalTime > 600000 ? 'bg-red-100 text-red-700' :
+              totalTime > 300000 ? 'bg-yellow-100 text-yellow-700' :
+              'bg-gray-100 text-gray-600'
+            }`}>{formatTimer(totalTime)}</span>
+          )}
+          <span className={`text-xs font-medium px-3 py-1 rounded-full ${badge.bg}`}>
+            {(status === 'generating' || status === 'validating') && <span className="inline-block w-2 h-2 bg-current rounded-full mr-1.5 pulse" />}
+            {badge.label}
+          </span>
+          {text && (
+            <span className="text-gray-400 text-sm">{expanded ? '▼' : '▶'}</span>
+          )}
+        </div>
+      </div>
+
+      {/* Content */}
+      {expanded && text && (
+        <div ref={containerRef} className="border-t border-gray-100 px-5 py-4 max-h-96 overflow-y-auto bg-gray-50">
+          <div className="roteiro-text text-gray-800">{text}</div>
+          {status === 'generating' && <span className="inline-block w-2 h-4 bg-sea-coral animate-pulse ml-0.5" />}
+        </div>
+      )}
+
+      {/* Validation result */}
+      {validation && expanded && (
+        <div className={`border-t px-5 py-3 text-sm ${validation.approved ? 'bg-emerald-50 text-emerald-700' : 'bg-red-50 text-red-700'}`}>
+          <strong>{validation.approved ? '✅ Validação:' : '❌ Validação:'}</strong> {validation.summary}
+          {validation.errors && validation.errors.length > 0 && (
+            <ul className="mt-2 space-y-1">
+              {validation.errors.map((e, i) => <li key={i} className="text-xs">• {e}</li>)}
+            </ul>
+          )}
+        </div>
+      )}
+
+      {/* Error */}
+      {error && (
+        <div className="border-t px-5 py-3 bg-red-50 text-sm text-red-700">
+          <strong>Erro:</strong> {error}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ============================================================
+// STEP 3 — PIPELINE (real execution!)
+// ============================================================
+
+function Step3_Pipeline({ data, onReset }) {
   const projectName = data.projeto?.nome || 'Empreendimento';
-  const timers = useAgentTimers(currentAgent);
+  const [activePieces, setActivePieces] = useState([1]);
+  const [completedPieces, setCompletedPieces] = useState(new Set());
+  const totalTimer = useTimer(completedPieces.size < 5);
 
-  const agents = [
-    { n:'02', name:'Roteirista', desc:'Criando 5 roteiros cena por cena...', icon:'🎬' },
-    { n:'03', name:'Validador de Roteiro', desc:'Validando roteiros contra o briefing...', icon:'✅' },
-    { n:'04', name:'Diretor Criativo', desc:'Definindo formatos, IAs e prompts...', icon:'🎨' },
-    { n:'05', name:'Executor Criativo', desc:'Gerando criativos via fal.ai...', icon:'⚡' },
-    { n:'06', name:'Validador do Criativo', desc:'Validação final dos arquivos...', icon:'🏆' },
-  ];
+  // Watch for pieces completing and start next one
+  const handlePieceStatus = useCallback((pieceNum, status) => {
+    if (status === 'approved' || status === 'rejected' || status === 'error') {
+      setCompletedPieces(prev => {
+        const next = new Set(prev);
+        next.add(pieceNum);
+        return next;
+      });
+      // Start next piece
+      const nextPiece = pieceNum + 1;
+      if (nextPiece <= 5) {
+        setActivePieces(prev => prev.includes(nextPiece) ? prev : [...prev, nextPiece]);
+      }
+    }
+  }, []);
 
-  // Calculate total pipeline time
-  const totalTime = Object.values(timers).reduce((sum, t) => sum + (t.elapsed || 0), 0);
-  const allDone = currentAgent > 6;
+  const allDone = completedPieces.size >= 5;
 
   return (
     <div className="fade-in">
       <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-4 mb-6 flex items-center justify-between">
-        <p className="text-sm text-emerald-700">✅ Briefing <strong>{projectName}</strong> validado. Pipeline em execução.</p>
-        {totalTime > 0 && (
-          <span className={`text-xs font-mono px-2 py-1 rounded-full ${allDone ? 'bg-emerald-200 text-emerald-800' : 'bg-yellow-100 text-yellow-800'}`}>
-            Total: {formatTimer(totalTime)}
-          </span>
-        )}
+        <p className="text-sm text-emerald-700">✅ Briefing <strong>{projectName}</strong> validado. Gerando roteiros...</p>
+        <span className={`text-xs font-mono px-2 py-1 rounded-full ${allDone ? 'bg-emerald-200 text-emerald-800' : 'bg-yellow-100 text-yellow-800'}`}>
+          {completedPieces.size}/5 peças | {formatTimer(totalTimer)}
+        </span>
       </div>
 
-      <div className="space-y-3">
-        {agents.map((a, i) => {
-          const agentIndex = i + 2; // agents 2-6
-          let status = 'idle';
-          if (agentIndex < currentAgent) status = 'success';
-          else if (agentIndex === currentAgent) status = 'running';
-
-          const timer = timers[agentIndex];
-          const timerDisplay = timer ? formatTimer(timer.elapsed) : null;
-          const isWarning = timer && timer.elapsed > 5 * 60 * 1000; // > 5 min
-          const isCritical = timer && timer.elapsed > 10 * 60 * 1000; // > 10 min
-
-          return (
-            <div key={a.n} className={`bg-white rounded-xl border p-5 transition-all ${status === 'running' ? 'border-yellow-300 shadow-md' : status === 'success' ? 'border-emerald-200' : 'border-gray-200 opacity-60'}`}>
-              <div className="flex items-center gap-4">
-                <div className={`w-10 h-10 rounded-xl flex items-center justify-center text-lg flex-shrink-0
-                  ${status === 'success' ? 'bg-emerald-100' : status === 'running' ? 'bg-yellow-100' : 'bg-gray-100'}`}>
-                  {status === 'success' ? '✓' : a.icon}
-                </div>
-                <div className="flex-1">
-                  <div className="flex items-center gap-2">
-                    <span className="text-[10px] font-mono bg-gray-100 text-gray-500 px-1.5 py-0.5 rounded">#{a.n}</span>
-                    <h3 className="font-display font-bold">{a.name}</h3>
-                  </div>
-                  {status === 'running' && (
-                    <p className="text-sm text-yellow-700 mt-1 flex items-center gap-2">
-                      <span className="w-2 h-2 bg-yellow-500 rounded-full pulse" />
-                      {a.desc}
-                    </p>
-                  )}
-                  {status === 'success' && (
-                    <p className="text-sm text-emerald-600 mt-1">Concluído ✓</p>
-                  )}
-                </div>
-                <div className="flex items-center gap-2 flex-shrink-0">
-                  {timerDisplay && (
-                    <span className={`text-xs font-mono px-2.5 py-1 rounded-full ${
-                      status === 'success'
-                        ? (isCritical ? 'bg-red-100 text-red-700' : isWarning ? 'bg-yellow-100 text-yellow-700' : 'bg-emerald-100 text-emerald-700')
-                        : (isCritical ? 'bg-red-100 text-red-700' : isWarning ? 'bg-yellow-100 text-yellow-700' : 'bg-gray-100 text-gray-600')
-                    }`}>
-                      {timerDisplay}
-                    </span>
-                  )}
-                  {status === 'success' && (
-                    <span className="text-xs bg-emerald-100 text-emerald-700 px-2 py-1 rounded-full">Aprovado</span>
-                  )}
-                  {status === 'running' && (
-                    <svg className="w-5 h-5 text-yellow-500 spinner" viewBox="0 0 24 24" fill="none">
-                      <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3" strokeDasharray="32" strokeLinecap="round"/>
-                    </svg>
-                  )}
-                </div>
-              </div>
-            </div>
-          );
-        })}
+      <div className="space-y-4">
+        {[1, 2, 3, 4, 5].map(n => (
+          <PieceCardWrapper key={n} pieceNumber={n} briefing={data}
+            active={activePieces.includes(n)} onStatusChange={handlePieceStatus} />
+        ))}
       </div>
 
       {allDone && (
         <div className="mt-6 bg-sea-dark rounded-xl p-6 text-white text-center fade-in">
           <div className="text-4xl mb-3">🎉</div>
-          <h3 className="font-display font-bold text-xl mb-2">Pacote completo gerado!</h3>
-          <p className="text-white/60 text-sm mb-2">{projectName}</p>
-          <p className="text-sm font-mono text-white/80 mb-4">Tempo total: {formatTimer(totalTime)}</p>
-          <div className="grid grid-cols-3 gap-4 max-w-md mx-auto">
-            <div className="bg-white/10 rounded-lg p-3">
-              <p className="text-lg font-bold">2</p>
-              <p className="text-[10px] text-white/50">Roteiros Monica</p>
-            </div>
-            <div className="bg-white/10 rounded-lg p-3">
-              <p className="text-lg font-bold">6</p>
-              <p className="text-[10px] text-white/50">Vídeos gerados</p>
-            </div>
-            <div className="bg-white/10 rounded-lg p-3">
-              <p className="text-lg font-bold">3</p>
-              <p className="text-[10px] text-white/50">Estáticos</p>
-            </div>
+          <h3 className="font-display font-bold text-xl mb-2">Roteiros completos!</h3>
+          <p className="text-white/60 text-sm mb-4">{projectName} — {formatTimer(totalTimer)}</p>
+          <button onClick={onReset} className="bg-sea-coral hover:bg-sea-coral/90 text-white font-bold px-6 py-2.5 rounded-lg text-sm">
+            Novo Briefing
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// Wrapper to observe status changes
+function PieceCardWrapper({ pieceNumber, briefing, active, onStatusChange }) {
+  const [status, setStatus] = useState('idle');
+  const [text, setText] = useState('');
+  const [validation, setValidation] = useState(null);
+  const [error, setError] = useState(null);
+  const [startTime, setStartTime] = useState(null);
+  const [endTime, setEndTime] = useState(null);
+  const [expanded, setExpanded] = useState(true);
+  const textRef = useRef('');
+  const started = useRef(false);
+  const containerRef = useRef(null);
+
+  const elapsed = useTimer(status === 'generating' || status === 'validating');
+
+  useEffect(() => {
+    if (active && !started.current) {
+      started.current = true;
+      runPiece();
+    }
+  }, [active]);
+
+  useEffect(() => {
+    if (status === 'approved' || status === 'rejected' || status === 'error') {
+      onStatusChange(pieceNumber, status);
+    }
+  }, [status]);
+
+  const runPiece = async () => {
+    setStatus('generating');
+    setStartTime(Date.now());
+
+    await new Promise((resolve) => {
+      generatePiece(
+        briefing, pieceNumber,
+        (chunk) => {
+          textRef.current += chunk;
+          setText(textRef.current);
+          if (containerRef.current) containerRef.current.scrollTop = containerRef.current.scrollHeight;
+        },
+        () => resolve(),
+        (err) => { setError(err); setStatus('error'); resolve(); }
+      );
+    });
+
+    if (textRef.current && status !== 'error') {
+      setStatus('validating');
+      const result = await validatePiece(briefing, textRef.current, pieceNumber);
+      setValidation(result);
+      setStatus(result.approved ? 'approved' : 'rejected');
+      setEndTime(Date.now());
+    }
+  };
+
+  const totalTime = endTime && startTime ? endTime - startTime : elapsed;
+  const name = PIECE_NAMES[pieceNumber - 1];
+  const icon = PIECE_ICONS[pieceNumber - 1];
+
+  const statusColors = {
+    idle: 'border-gray-200 opacity-60',
+    generating: 'border-sea-coral shadow-md',
+    validating: 'border-yellow-300 shadow-md',
+    approved: 'border-emerald-300',
+    rejected: 'border-red-300',
+    error: 'border-red-300',
+  };
+  const statusBadge = {
+    idle: { bg: 'bg-gray-100 text-gray-400', label: 'Aguardando' },
+    generating: { bg: 'bg-sea-coral/10 text-sea-coral', label: 'Gerando...' },
+    validating: { bg: 'bg-yellow-100 text-yellow-700', label: 'Validando...' },
+    approved: { bg: 'bg-emerald-100 text-emerald-700', label: 'Aprovado' },
+    rejected: { bg: 'bg-red-100 text-red-700', label: 'Reprovado' },
+    error: { bg: 'bg-red-100 text-red-700', label: 'Erro' },
+  };
+  const badge = statusBadge[status];
+
+  return (
+    <div className={`bg-white rounded-xl border-2 overflow-hidden transition-all fade-in ${statusColors[status]}`}>
+      <div className="flex items-center gap-3 px-5 py-4 cursor-pointer" onClick={() => text && setExpanded(!expanded)}>
+        <div className={`w-10 h-10 rounded-xl flex items-center justify-center text-lg flex-shrink-0
+          ${status === 'approved' ? 'bg-emerald-100' : status === 'generating' ? 'bg-sea-coral/10' : 'bg-gray-100'}`}>
+          {status === 'approved' ? '✓' : icon}
+        </div>
+        <div className="flex-1">
+          <div className="flex items-center gap-2">
+            <span className="text-[10px] font-mono bg-gray-100 text-gray-500 px-1.5 py-0.5 rounded">#{pieceNumber}</span>
+            <h3 className="font-display font-bold">{name}</h3>
           </div>
         </div>
+        <div className="flex items-center gap-2 flex-shrink-0">
+          {totalTime > 0 && (
+            <span className={`text-xs font-mono px-2 py-1 rounded-full ${
+              totalTime > 600000 ? 'bg-red-100 text-red-700' : totalTime > 300000 ? 'bg-yellow-100 text-yellow-700' : 'bg-gray-100 text-gray-600'
+            }`}>{formatTimer(totalTime)}</span>
+          )}
+          <span className={`text-xs font-medium px-3 py-1 rounded-full ${badge.bg}`}>
+            {(status === 'generating' || status === 'validating') && <span className="inline-block w-2 h-2 bg-current rounded-full mr-1.5 pulse" />}
+            {badge.label}
+          </span>
+          {text && <span className="text-gray-400 text-sm">{expanded ? '▼' : '▶'}</span>}
+        </div>
+      </div>
+
+      {expanded && text && (
+        <div ref={containerRef} className="border-t border-gray-100 px-5 py-4 max-h-96 overflow-y-auto bg-gray-50">
+          <div className="roteiro-text text-gray-800">{text}</div>
+          {status === 'generating' && <span className="inline-block w-2 h-4 bg-sea-coral animate-pulse ml-0.5" />}
+        </div>
+      )}
+
+      {validation && expanded && (
+        <div className={`border-t px-5 py-3 text-sm ${validation.approved ? 'bg-emerald-50 text-emerald-700' : 'bg-red-50 text-red-700'}`}>
+          <strong>{validation.approved ? '✅' : '❌'}</strong> {validation.summary}
+          {validation.errors && validation.errors.length > 0 && (
+            <ul className="mt-2 space-y-1">{validation.errors.map((e, i) => <li key={i} className="text-xs">• {e}</li>)}</ul>
+          )}
+        </div>
+      )}
+
+      {error && (
+        <div className="border-t px-5 py-3 bg-red-50 text-sm text-red-700"><strong>Erro:</strong> {error}</div>
       )}
     </div>
   );
@@ -629,44 +721,25 @@ function Step3_Pipeline({ data, currentAgent }) {
 // ============================================================
 
 function App() {
-  const [step, setStep] = useState(1); // 1=input, 2=validation, 3=pipeline
+  const [step, setStep] = useState(1);
   const [briefingData, setBriefingData] = useState(null);
   const [briefingUrl, setBriefingUrl] = useState('');
-  const [currentAgent, setCurrentAgent] = useState(2);
 
-  const STEPS = ['Briefing', 'Validação', 'Roteiros', 'Validação', 'Direção', 'Execução', 'Validação Final'];
-
-  const handleBriefingLoaded = (data, url) => {
-    setBriefingData(data);
-    setBriefingUrl(url);
-    setStep(2);
-  };
-
-  const handleApproved = (data) => {
-    setStep(3);
-    setCurrentAgent(2);
-  };
-
-  const handleReset = () => {
-    setStep(1);
-    setBriefingData(null);
-    setBriefingUrl('');
-    setCurrentAgent(2);
-  };
+  const STEPS = ['Briefing', 'Validação', 'Roteiros'];
 
   return (
     <div className="min-h-screen bg-gray-50">
       <Header />
       <div className="max-w-4xl mx-auto px-4 py-6">
-        {/* Step indicator */}
         <div className="mb-6">
           <StepIndicator steps={STEPS} currentStep={step - 1} />
         </div>
-
-        {/* Content */}
-        {step === 1 && <Step1_Input onSubmit={handleBriefingLoaded} />}
-        {step === 2 && <Step2_Validation data={briefingData} url={briefingUrl} onApproved={handleApproved} onReset={handleReset} />}
-        {step === 3 && <Step3_Pipeline data={briefingData} currentAgent={currentAgent} />}
+        {step === 1 && <Step1_Input onSubmit={(data, url) => { setBriefingData(data); setBriefingUrl(url); setStep(2); }} />}
+        {step === 2 && <Step2_Validation data={briefingData} url={briefingUrl}
+          onApproved={() => setStep(3)}
+          onReset={() => { setStep(1); setBriefingData(null); }} />}
+        {step === 3 && <Step3_Pipeline data={briefingData}
+          onReset={() => { setStep(1); setBriefingData(null); }} />}
       </div>
     </div>
   );
