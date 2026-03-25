@@ -26,510 +26,513 @@
   </script>
   <style>
     body { font-family: 'DM Sans', sans-serif; }
-    h1,h2,h3,h4,h5 { font-family: 'Space Grotesk', sans-serif; }
-    .gradient-hero { background: linear-gradient(135deg, #011337 0%, #0D4BD0 50%, #011337 100%); }
-    .glass { background: rgba(255,255,255,0.08); backdrop-filter: blur(20px); border: 1px solid rgba(255,255,255,0.12); }
-    @keyframes fadeUp { from { opacity:0; transform:translateY(20px); } to { opacity:1; transform:translateY(0); } }
-    .fade-up { animation: fadeUp 0.5s ease-out forwards; }
-    @keyframes pulse { 0%,100% { opacity:1; } 50% { opacity:0.4; } }
-    .pulse { animation: pulse 2s ease-in-out infinite; }
-    .connector { position: relative; }
-    .connector::after { content:''; position:absolute; left:50%; bottom:-24px; width:2px; height:24px; background:linear-gradient(to bottom,#0D4BD0,transparent); }
+    h1,h2,h3,h4 { font-family: 'Space Grotesk', sans-serif; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .spinner { animation: spin 1s linear infinite; }
+    @keyframes fadeIn { from { opacity:0; transform:translateY(8px); } to { opacity:1; transform:translateY(0); } }
+    .fade-in { animation: fadeIn 0.3s ease-out forwards; }
+    @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.5} }
+    .pulse { animation: pulse 1.5s ease-in-out infinite; }
   </style>
 </head>
-<body class="bg-white text-gray-900">
+<body class="bg-gray-50 min-h-screen">
 <div id="root"></div>
 <script type="text/babel">
-const { useState } = React;
+const { useState, useCallback } = React;
 
-const AGENTS = [
+// ============================================================
+// AGENT 01 — BRIEFING VALIDATOR (runs in browser)
+// ============================================================
+
+const REQUIRED_SECTIONS = [
   {
-    id: '01', name: 'Validador de Briefing', icon: '🔍', color: 'from-blue-500 to-blue-600',
-    role: 'Porteiro da máquina',
-    desc: 'Recebe a URL do briefing.json (Lovable) e valida que todas as 9 seções obrigatórias estão presentes. Se faltar algo, PARA e lista exatamente o que falta.',
-    input: 'URL do briefing.json',
-    output: '✅ Briefing validado → libera pro Agente 02\n❌ Lista exata do que falta → corrigir no Lovable',
-    checks: [
-      'Projeto (nome, endereço, cidade, tipo)',
-      'Dados financeiros (ROI, ticket, rentabilidade, valorização, rendimento, cotas, competitivo)',
-      'Localização (características da região)',
-      'Pontos fortes (ranqueados com status)',
-      'DO\'s (diretrizes do que reforçar)',
-      'DON\'Ts (diretrizes do que evitar)',
-      'Público-alvo (níveis de prioridade)',
-      'Perfil do hóspede (tipo + fatores)',
-      'Estrutura de criativos (pontos obrigatórios, formatos, instruções visuais)',
+    key: 'projeto',
+    label: 'Projeto',
+    fields: [
+      { path: 'nome', label: 'Nome' },
+      { path: 'endereco', label: 'Endereço' },
+      { path: 'cidade', label: 'Cidade' },
+      { path: 'tipo', label: 'Tipo' },
     ],
   },
   {
-    id: '02', name: 'Roteirista', icon: '🎬', color: 'from-purple-500 to-purple-600',
-    role: 'Criador dos roteiros',
-    desc: 'Lê o briefing validado, segue a hierarquia dos pontos fortes e cria 5 peças completas, cena por cena, com campos Cena/Lettering/Roteiro. Monica é sempre sócia fundadora da Seazone.',
-    input: 'Briefing validado (9 seções)',
-    output: '5 roteiros completos cena por cena',
-    pieces: [
-      { name: 'Vídeo com Apresentadora', duration: '30s', format: 'Cena / Lettering / Roteiro (fala da Monica)' },
-      { name: 'Vídeo com Apresentadora', duration: '15s', format: 'Cena / Lettering / Roteiro (fala da Monica)' },
-      { name: 'Vídeo Narrado', duration: '30s', format: 'Cena / Lettering / Roteiro (narração em off)' },
-      { name: 'Vídeo Narrado', duration: '15s', format: 'Cena / Lettering / Roteiro (narração em off)' },
-      { name: 'Peça Estática', duration: '—', format: 'Conceito / Texto principal / Texto secundário' },
+    key: 'dados_financeiros',
+    label: 'Dados Financeiros',
+    fields: [
+      { path: 'ticket_medio.valor', label: 'Ticket médio' },
+      { path: 'roi_estimado.valor', label: 'ROI estimado' },
+      { path: 'rentabilidade_liquida_estimada.valor', label: 'Rentabilidade líquida' },
+      { path: 'valorizacao_estimada.valor', label: 'Valorização estimada' },
+      { path: 'rendimento_mensal_estimado', label: 'Rendimento mensal' },
+      { path: 'estrutura.quantidade_cotas', label: 'Quantidade de cotas' },
+      { path: 'panorama_competitivo', label: 'Panorama competitivo', isObject: true },
     ],
   },
   {
-    id: '03', name: 'Validador de Roteiro', icon: '✅', color: 'from-green-500 to-green-600',
-    role: 'Controle de qualidade dos roteiros',
-    desc: 'Valida cada uma das 5 peças contra o briefing. 9 critérios de validação. Se reprovar, lista erros exatos e manda o Agente 02 corrigir.',
-    input: '5 roteiros do Agente 02 + briefing.json',
-    output: '✅ 5/5 aprovados → libera pro Agente 04\n❌ Lista erros exatos → volta pro Agente 02',
-    criteria: [
-      { code: 'A', name: 'Pontos fortes obrigatórios', rule: 'Todos os 5 presentes' },
-      { code: 'B', name: 'Hierarquia dos pontos fortes', rule: 'Ordem de prioridade respeitada' },
-      { code: 'C', name: 'DO\'s', rule: 'Todos reforçados' },
-      { code: 'D', name: 'DON\'Ts', rule: 'Tolerância zero — nenhum violado' },
-      { code: 'E', name: 'Instruções visuais', rule: 'Todas respeitadas' },
-      { code: 'F', name: 'Formato', rule: 'Cena/Lettering/Roteiro completos' },
-      { code: 'G', name: 'Dados financeiros', rule: 'Exatos — sem inventar ou arredondar' },
-      { code: 'H', name: 'Monica', rule: 'Sócia fundadora, tom de autoridade' },
-      { code: 'I', name: 'Duração', rule: '15s = máx 3 cenas, 30s = 3-6 cenas' },
+    key: 'localizacao',
+    label: 'Localização',
+    fields: [
+      { path: 'caracteristicas_principais', label: 'Características principais', isArray: true, minItems: 1 },
     ],
   },
   {
-    id: '04', name: 'Diretor Criativo', icon: '🎨', color: 'from-orange-500 to-orange-600',
-    role: 'Preparação para execução',
-    desc: 'Pega os roteiros validados e prepara tudo pro Agente 05: define formatos (Reels/Feed/Story), escolhe a IA por cena, cria prompts otimizados e mapeia imagens do banco no Google Drive.',
-    input: 'Roteiros validados + briefing + banco de imagens',
-    output: 'Direção criativa completa com prompts prontos',
-    specs: [
-      { label: 'Formatos vídeo', value: 'Reels 9:16 · Feed 4:5 · Story 9:16' },
-      { label: 'Formatos estático', value: '9:16 · 4:5 · 1:1' },
-      { label: 'IA de imagem', value: 'Flux Pro (via fal.ai)' },
-      { label: 'IA de vídeo', value: 'Kling / Minimax (via fal.ai)' },
-      { label: 'Banco de imagens', value: 'Google Drive — 6 subpastas por empreendimento' },
-      { label: 'Idioma prompts', value: 'Inglês (melhor resultado)' },
+    key: 'pontos_fortes',
+    label: 'Pontos Fortes',
+    fields: [
+      { path: 'hierarquia', label: 'Hierarquia de pontos fortes', isArray: true, minItems: 3 },
     ],
   },
   {
-    id: '05', name: 'Executor Criativo', icon: '⚡', color: 'from-yellow-500 to-yellow-600',
-    role: 'Geração dos criativos finais',
-    desc: 'Executa tudo via fal.ai: gera imagens (Flux Pro), vídeos (Kling/Minimax), monta roteiro final da apresentadora. Salva local + Google Drive.',
-    input: 'Direção criativa do Agente 04 + banco de imagens + API fal.ai',
-    output: 'Arquivos finais gerados e salvos',
-    deliverables: [
-      { piece: 'Apresentadora 30s', files: 'Roteiro final + imagens de apoio (3 formatos)' },
-      { piece: 'Apresentadora 15s', files: 'Roteiro final + imagens de apoio (3 formatos)' },
-      { piece: 'Narrado 30s', files: '3 vídeos (Reels + Feed + Story)' },
-      { piece: 'Narrado 15s', files: '3 vídeos (Reels + Feed + Story)' },
-      { piece: 'Estático', files: '3 imagens (9:16 + 4:5 + 1:1)' },
+    key: 'dos',
+    label: "DO's",
+    fields: [
+      { path: 'diretrizes', label: 'Diretrizes DO', isArray: true, minItems: 1 },
     ],
   },
   {
-    id: '06', name: 'Validador do Criativo', icon: '🏆', color: 'from-emerald-500 to-emerald-600',
-    role: 'Validação final — última porta',
-    desc: 'Valida todos os criativos gerados: arquivos existem, qualidade visual, dados no lettering, roteiro da Monica. Só libera quando tudo estiver 100%.',
-    input: 'Criativos gerados + briefing + direção criativa',
-    output: '✅ Pacote completo pronto pra publicação\n❌ Lista erros → volta pro Agente 05',
-    finalChecks: [
-      { code: 'A', name: 'Completude', rule: 'Todos os arquivos gerados (vídeos, imagens, roteiros)' },
-      { code: 'B', name: 'Qualidade visual', rule: 'Instruções do briefing respeitadas em cada arquivo' },
-      { code: 'C', name: 'Dados nos criativos', rule: 'Lettering bate com briefing — zero erro' },
-      { code: 'D', name: 'Roteiro Monica', rule: 'Formatado e pronto pra gravar' },
+    key: 'donts',
+    label: "DON'Ts",
+    fields: [
+      { path: 'diretrizes', label: 'Diretrizes DON\'T', isArray: true, minItems: 1 },
+    ],
+  },
+  {
+    key: 'publico_alvo',
+    label: 'Público-Alvo',
+    fields: [
+      { path: 'prioridades', label: 'Prioridades de público', isArray: true, minItems: 1 },
+    ],
+  },
+  {
+    key: 'perfil_hospede',
+    label: 'Perfil do Hóspede',
+    fields: [
+      { path: 'tipo_principal', label: 'Tipo principal' },
+      { path: 'fatores_decisao', label: 'Fatores de decisão', isArray: true, minItems: 1 },
+    ],
+  },
+  {
+    key: 'estrutura_criativos',
+    label: 'Estrutura de Criativos',
+    fields: [
+      { path: 'pontos_fortes_obrigatorios', label: 'Pontos fortes obrigatórios', isArray: true, minItems: 1 },
+      { path: 'formatos', label: 'Formatos', isArray: true, minItems: 1 },
+      { path: 'instrucoes_visuais_obrigatorias', label: 'Instruções visuais', isArray: true, minItems: 1 },
     ],
   },
 ];
 
-function Nav({ section, setSection }) {
-  const items = [
-    { id:'hero', label:'Início' },
-    { id:'pipeline', label:'Pipeline' },
-    { id:'output', label:'Output' },
-    { id:'tech', label:'Tecnologia' },
-  ];
+function getNestedValue(obj, path) {
+  return path.split('.').reduce((o, k) => (o && o[k] !== undefined) ? o[k] : undefined, obj);
+}
+
+function validateBriefing(data) {
+  const results = [];
+  let allPassed = true;
+
+  for (const section of REQUIRED_SECTIONS) {
+    const sectionData = data[section.key];
+    const fieldResults = [];
+    let sectionPassed = true;
+
+    if (!sectionData) {
+      results.push({
+        key: section.key,
+        label: section.label,
+        passed: false,
+        error: 'Seção inteira ausente do briefing',
+        fields: [],
+      });
+      allPassed = false;
+      continue;
+    }
+
+    for (const field of section.fields) {
+      const value = getNestedValue(sectionData, field.path);
+      let passed = true;
+      let error = null;
+
+      if (field.isArray) {
+        if (!Array.isArray(value) || value.length < (field.minItems || 1)) {
+          passed = false;
+          error = `Array vazio ou com menos de ${field.minItems || 1} item(ns)`;
+        }
+      } else if (field.isObject) {
+        if (!value || typeof value !== 'object' || Object.keys(value).length === 0) {
+          passed = false;
+          error = 'Objeto vazio ou ausente';
+        }
+      } else {
+        if (value === undefined || value === null || value === '') {
+          passed = false;
+          error = 'Campo vazio ou ausente';
+        }
+      }
+
+      if (!passed) sectionPassed = false;
+      fieldResults.push({ path: field.path, label: field.label, passed, error, value: passed ? value : null });
+    }
+
+    if (!sectionPassed) allPassed = false;
+    results.push({ key: section.key, label: section.label, passed: sectionPassed, fields: fieldResults });
+  }
+
+  return { allPassed, results };
+}
+
+// ============================================================
+// COMPONENTS
+// ============================================================
+
+function Header() {
   return (
-    <nav className="fixed top-0 w-full bg-sea-dark/95 backdrop-blur-md z-50 border-b border-white/10">
-      <div className="max-w-6xl mx-auto px-4 flex items-center justify-between h-14">
-        <div className="flex items-center gap-3">
-          <div className="w-7 h-7 bg-sea-coral rounded-lg flex items-center justify-center">
-            <span className="text-white font-bold text-xs">S</span>
-          </div>
-          <span className="text-white font-display font-bold text-sm">Máquina de Criativos</span>
+    <header className="bg-sea-dark text-white">
+      <div className="max-w-5xl mx-auto px-4 py-4 flex items-center gap-3">
+        <div className="w-8 h-8 bg-sea-coral rounded-lg flex items-center justify-center">
+          <span className="font-bold text-sm">S</span>
         </div>
-        <div className="hidden md:flex items-center gap-1">
-          {items.map(i=>(
-            <button key={i.id} onClick={()=>{setSection(i.id);document.getElementById(i.id)?.scrollIntoView({behavior:'smooth'})}}
-              className={`px-3 py-1.5 text-xs rounded-full transition-all ${section===i.id?'bg-white/15 text-white font-semibold':'text-white/60 hover:text-white/90'}`}>
-              {i.label}
-            </button>
-          ))}
-        </div>
-        <div className="flex items-center gap-2">
-          <div className="w-2 h-2 rounded-full bg-sea-green pulse"/>
-          <span className="text-[10px] text-white/40 hidden sm:block">Seazone 2025</span>
+        <div>
+          <h1 className="font-display font-bold text-lg leading-tight">Máquina de Criativos</h1>
+          <p className="text-[10px] text-white/50">Seazone — Geração autônoma de criativos</p>
         </div>
       </div>
-    </nav>
+    </header>
   );
 }
 
-function Hero() {
+function StepIndicator({ steps, currentStep }) {
   return (
-    <section id="hero" className="gradient-hero min-h-[90vh] flex items-center pt-14">
-      <div className="max-w-6xl mx-auto px-4 py-20">
-        <div className="max-w-3xl">
-          <div className="inline-flex items-center gap-2 bg-white/10 rounded-full px-4 py-1.5 mb-6 text-white/80 text-xs">
-            <span className="w-2 h-2 rounded-full bg-sea-coral"/>
-            Hackathon Máquina de Criativos — Seazone 2025
+    <div className="flex items-center gap-1 overflow-x-auto pb-2">
+      {steps.map((s, i) => (
+        <div key={i} className="flex items-center gap-1 flex-shrink-0">
+          <div className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold transition-all
+            ${i < currentStep ? 'bg-sea-green text-white' :
+              i === currentStep ? 'bg-sea-coral text-white ring-2 ring-sea-coral/30' :
+              'bg-gray-200 text-gray-400'}`}>
+            {i < currentStep ? '✓' : i + 1}
           </div>
-          <h1 className="font-display text-4xl sm:text-5xl lg:text-6xl font-bold text-white leading-tight tracking-tight mb-6">
-            Briefing entra.<br/>
-            <span className="text-sea-coral">Conteúdo pronto sai.</span>
-          </h1>
-          <p className="text-lg text-white/70 mb-10 max-w-xl leading-relaxed">
-            6 agentes autônomos que transformam um briefing imobiliário em vídeos, imagens e roteiros
-            prontos para publicação — tudo orquestrado pelo Claude Code, sem intervenção humana.
-          </p>
-          <div className="flex flex-wrap gap-4 mb-10">
-            {[
-              { n:'6', l:'Agentes' },
-              { n:'5', l:'Peças por briefing' },
-              { n:'15', l:'Arquivos finais' },
-              { n:'3', l:'Formatos cada' },
-              { n:'0', l:'Intervenção humana' },
-            ].map(d=>(
-              <div key={d.l} className="glass rounded-xl px-5 py-3 text-center">
-                <p className="text-2xl font-bold text-white font-display">{d.n}</p>
-                <p className="text-[10px] text-white/50 uppercase">{d.l}</p>
-              </div>
-            ))}
-          </div>
-          <div className="flex flex-wrap gap-2">
-            {['Claude Code','fal.ai','Flux Pro','Kling','Lovable','Google Drive'].map(t=>(
-              <span key={t} className="text-xs bg-white/10 text-white/70 px-3 py-1 rounded-full">{t}</span>
-            ))}
-          </div>
+          {i < steps.length - 1 && (
+            <div className={`w-6 h-0.5 ${i < currentStep ? 'bg-sea-green' : 'bg-gray-200'}`} />
+          )}
         </div>
-      </div>
-    </section>
-  );
-}
-
-function Pipeline() {
-  const [open, setOpen] = useState(null);
-  return (
-    <section id="pipeline" className="py-20 bg-gray-50">
-      <div className="max-w-6xl mx-auto px-4">
-        <h2 className="font-display text-3xl font-bold mb-2">Pipeline de Agentes</h2>
-        <p className="text-gray-500 mb-4">Briefing entra no Agente 1 → conteúdo pronto sai do Agente 6</p>
-        <div className="bg-sea-dark rounded-2xl p-5 mb-10 text-white text-sm">
-          <div className="flex items-center gap-2 mb-3">
-            <span className="text-lg">📋</span>
-            <span className="font-display font-bold">Input: briefing.json do Lovable</span>
-          </div>
-          <p className="text-white/60">A máquina começa com a URL do briefing de qualquer empreendimento SPOT. O Lovable fornece os dados estruturados em JSON.</p>
-        </div>
-        <div className="space-y-3">
-          {AGENTS.map((a,i)=>(
-            <div key={a.id}>
-              <div className="bg-white rounded-xl border border-gray-200 hover:border-gray-300 hover:shadow-md transition-all cursor-pointer overflow-hidden"
-                onClick={()=>setOpen(open===a.id?null:a.id)}>
-                <div className="p-5 flex items-center gap-4">
-                  <div className={`w-12 h-12 bg-gradient-to-br ${a.color} rounded-xl flex items-center justify-center text-xl flex-shrink-0`}>{a.icon}</div>
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 mb-1">
-                      <span className="text-[10px] bg-gray-100 text-gray-500 px-2 py-0.5 rounded font-mono">#{a.id}</span>
-                      <h3 className="font-display font-bold text-lg">{a.name}</h3>
-                      <span className="text-[10px] text-gray-400 hidden sm:inline">— {a.role}</span>
-                    </div>
-                    <p className="text-sm text-gray-500 line-clamp-1">{a.desc}</p>
-                  </div>
-                  <svg className={`w-5 h-5 text-gray-400 transition-transform flex-shrink-0 ${open===a.id?'rotate-180':''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7"/>
-                  </svg>
-                </div>
-                {open===a.id && (
-                  <div className="border-t border-gray-100 p-5 bg-gray-50/50">
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-4">
-                      <div className="bg-white rounded-lg p-3 border">
-                        <p className="text-[10px] text-gray-500 uppercase mb-1 font-bold">Input</p>
-                        <p className="text-sm">{a.input}</p>
-                      </div>
-                      <div className="bg-white rounded-lg p-3 border">
-                        <p className="text-[10px] text-gray-500 uppercase mb-1 font-bold">Output</p>
-                        <p className="text-sm whitespace-pre-line">{a.output}</p>
-                      </div>
-                    </div>
-                    {a.checks && (
-                      <div>
-                        <p className="text-xs font-bold text-gray-500 uppercase mb-2">9 seções validadas</p>
-                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-                          {a.checks.map((c,j)=>(
-                            <div key={j} className="bg-white rounded-lg px-3 py-2 border text-sm flex items-center gap-2">
-                              <span className="text-sea-green text-xs">✓</span>{c}
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-                    {a.pieces && (
-                      <div>
-                        <p className="text-xs font-bold text-gray-500 uppercase mb-2">5 peças geradas</p>
-                        <div className="space-y-2">
-                          {a.pieces.map((p,j)=>(
-                            <div key={j} className="bg-white rounded-lg px-4 py-3 border flex items-center justify-between">
-                              <div>
-                                <span className="text-sm font-medium">{p.name}</span>
-                                {p.duration!=='—'&&<span className="text-xs bg-gray-100 text-gray-500 px-2 py-0.5 rounded ml-2">{p.duration}</span>}
-                              </div>
-                              <span className="text-xs text-gray-400">{p.format}</span>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-                    {a.criteria && (
-                      <div>
-                        <p className="text-xs font-bold text-gray-500 uppercase mb-2">9 critérios de validação</p>
-                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-                          {a.criteria.map(c=>(
-                            <div key={c.code} className="bg-white rounded-lg px-3 py-2 border">
-                              <div className="flex items-center gap-2 mb-1">
-                                <span className="text-[10px] bg-sea-dark text-white w-5 h-5 rounded flex items-center justify-center font-mono font-bold">{c.code}</span>
-                                <span className="text-sm font-medium">{c.name}</span>
-                              </div>
-                              <p className="text-xs text-gray-500">{c.rule}</p>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-                    {a.specs && (
-                      <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-                        {a.specs.map(s=>(
-                          <div key={s.label} className="bg-white rounded-lg px-3 py-2 border">
-                            <p className="text-[10px] text-gray-500 uppercase">{s.label}</p>
-                            <p className="text-sm font-medium">{s.value}</p>
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                    {a.deliverables && (
-                      <div>
-                        <p className="text-xs font-bold text-gray-500 uppercase mb-2">Entregas por peça</p>
-                        <div className="space-y-2">
-                          {a.deliverables.map(d=>(
-                            <div key={d.piece} className="bg-white rounded-lg px-4 py-3 border flex items-center justify-between">
-                              <span className="text-sm font-medium">{d.piece}</span>
-                              <span className="text-xs text-gray-500">{d.files}</span>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-                    {a.finalChecks && (
-                      <div>
-                        <p className="text-xs font-bold text-gray-500 uppercase mb-2">Critérios finais</p>
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                          {a.finalChecks.map(c=>(
-                            <div key={c.code} className="bg-white rounded-lg px-3 py-2 border">
-                              <div className="flex items-center gap-2 mb-1">
-                                <span className="text-[10px] bg-emerald-600 text-white w-5 h-5 rounded flex items-center justify-center font-mono font-bold">{c.code}</span>
-                                <span className="text-sm font-medium">{c.name}</span>
-                              </div>
-                              <p className="text-xs text-gray-500">{c.rule}</p>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                )}
-              </div>
-              {i<AGENTS.length-1 && (
-                <div className="flex justify-center py-2">
-                  <svg className="w-5 h-5 text-gray-300" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 14l-7 7m0 0l-7-7m7 7V3"/>
-                  </svg>
-                </div>
-              )}
-            </div>
-          ))}
-        </div>
-      </div>
-    </section>
-  );
-}
-
-function Output() {
-  return (
-    <section id="output" className="py-20">
-      <div className="max-w-6xl mx-auto px-4">
-        <h2 className="font-display text-3xl font-bold mb-2">Output Final</h2>
-        <p className="text-gray-500 mb-8">O que a máquina entrega por briefing</p>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          <div className="bg-white rounded-2xl border-2 border-gray-200 p-6 hover:border-sea-coral transition-colors">
-            <div className="w-12 h-12 bg-sea-coral/10 rounded-xl flex items-center justify-center text-2xl mb-4">📋</div>
-            <h3 className="font-display font-bold text-lg mb-2">Roteiro com Apresentadora</h3>
-            <p className="text-sm text-gray-500 mb-4">Pronto pra Monica (CCO e sócia fundadora) gravar. Cena por cena com fala exata, lettering e direção.</p>
-            <div className="space-y-2">
-              <div className="flex justify-between text-sm"><span className="text-gray-600">Versão 30s</span><span className="text-gray-400">3 formatos</span></div>
-              <div className="flex justify-between text-sm"><span className="text-gray-600">Versão 15s</span><span className="text-gray-400">3 formatos</span></div>
-              <div className="flex justify-between text-sm"><span className="text-gray-600">Imagens de apoio</span><span className="text-gray-400">por cena</span></div>
-            </div>
-          </div>
-          <div className="bg-white rounded-2xl border-2 border-gray-200 p-6 hover:border-purple-500 transition-colors">
-            <div className="w-12 h-12 bg-purple-100 rounded-xl flex items-center justify-center text-2xl mb-4">🎬</div>
-            <h3 className="font-display font-bold text-lg mb-2">Vídeo Narrado</h3>
-            <p className="text-sm text-gray-500 mb-4">100% gerado por IA. Sem apresentadora — visual + narração em off + lettering. Pronto pra publicar.</p>
-            <div className="space-y-2">
-              <div className="flex justify-between text-sm"><span className="text-gray-600">Versão 30s</span><span className="text-gray-400">3 formatos</span></div>
-              <div className="flex justify-between text-sm"><span className="text-gray-600">Versão 15s</span><span className="text-gray-400">3 formatos</span></div>
-              <div className="flex justify-between text-sm"><span className="text-gray-600">Total</span><span className="font-medium">6 vídeos</span></div>
-            </div>
-          </div>
-          <div className="bg-white rounded-2xl border-2 border-gray-200 p-6 hover:border-orange-500 transition-colors">
-            <div className="w-12 h-12 bg-orange-100 rounded-xl flex items-center justify-center text-2xl mb-4">🖼️</div>
-            <h3 className="font-display font-bold text-lg mb-2">Peça Estática</h3>
-            <p className="text-sm text-gray-500 mb-4">Imagem gerada por IA com headline de impacto, dados financeiros e visual Seazone. Pronta pra publicar.</p>
-            <div className="space-y-2">
-              <div className="flex justify-between text-sm"><span className="text-gray-600">Reels/Story</span><span className="text-gray-400">9:16</span></div>
-              <div className="flex justify-between text-sm"><span className="text-gray-600">Feed</span><span className="text-gray-400">4:5</span></div>
-              <div className="flex justify-between text-sm"><span className="text-gray-600">Feed quadrado</span><span className="text-gray-400">1:1</span></div>
-            </div>
-          </div>
-        </div>
-        <div className="mt-8 bg-sea-dark rounded-2xl p-6 text-white">
-          <h4 className="font-display font-bold mb-3">Resumo por briefing</h4>
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-            <div className="text-center">
-              <p className="text-3xl font-bold font-display">2</p>
-              <p className="text-xs text-white/50">Roteiros pra gravar</p>
-            </div>
-            <div className="text-center">
-              <p className="text-3xl font-bold font-display">6</p>
-              <p className="text-xs text-white/50">Vídeos gerados por IA</p>
-            </div>
-            <div className="text-center">
-              <p className="text-3xl font-bold font-display">3</p>
-              <p className="text-xs text-white/50">Imagens estáticas</p>
-            </div>
-            <div className="text-center">
-              <p className="text-3xl font-bold font-display text-sea-coral">15+</p>
-              <p className="text-xs text-white/50">Arquivos totais</p>
-            </div>
-          </div>
-        </div>
-      </div>
-    </section>
-  );
-}
-
-function Tech() {
-  return (
-    <section id="tech" className="py-20 bg-gray-50">
-      <div className="max-w-6xl mx-auto px-4">
-        <h2 className="font-display text-3xl font-bold mb-2">Tecnologia</h2>
-        <p className="text-gray-500 mb-8">Stack e integrações da máquina</p>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
-          <div className="bg-white rounded-xl border p-6">
-            <h4 className="font-display font-bold mb-4">🧠 Orquestrador</h4>
-            <div className="space-y-3">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 bg-sea-dark rounded-lg flex items-center justify-center"><span className="text-white text-sm font-bold">C</span></div>
-                <div><p className="font-medium">Claude Code</p><p className="text-xs text-gray-500">Orquestra todos os 6 agentes em sequência</p></div>
-              </div>
-            </div>
-          </div>
-          <div className="bg-white rounded-xl border p-6">
-            <h4 className="font-display font-bold mb-4">📋 Fonte de dados</h4>
-            <div className="space-y-3">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 bg-pink-100 rounded-lg flex items-center justify-center">💜</div>
-                <div><p className="font-medium">Lovable</p><p className="text-xs text-gray-500">briefing.json com todas as informações do empreendimento</p></div>
-              </div>
-            </div>
-          </div>
-          <div className="bg-white rounded-xl border p-6">
-            <h4 className="font-display font-bold mb-4">🎨 Geração por IA</h4>
-            <div className="space-y-3">
-              {[
-                {name:'Flux Pro',desc:'Geração de imagens fotorrealísticas',via:'fal.ai'},
-                {name:'Kling',desc:'Geração de vídeo (cenas complexas)',via:'fal.ai'},
-                {name:'Minimax',desc:'Geração de vídeo (alternativa)',via:'fal.ai'},
-              ].map(t=>(
-                <div key={t.name} className="flex items-center justify-between">
-                  <div><p className="text-sm font-medium">{t.name}</p><p className="text-xs text-gray-500">{t.desc}</p></div>
-                  <span className="text-[10px] bg-yellow-100 text-yellow-800 px-2 py-0.5 rounded-full">{t.via}</span>
-                </div>
-              ))}
-            </div>
-          </div>
-          <div className="bg-white rounded-xl border p-6">
-            <h4 className="font-display font-bold mb-4">📁 Armazenamento</h4>
-            <div className="space-y-3">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center">📁</div>
-                <div><p className="font-medium">Google Drive</p><p className="text-xs text-gray-500">Banco de imagens + criativos gerados</p></div>
-              </div>
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 bg-gray-100 rounded-lg flex items-center justify-center">💻</div>
-                <div><p className="font-medium">Local</p><p className="text-xs text-gray-500">Cópia de todos os arquivos no projeto</p></div>
-              </div>
-            </div>
-          </div>
-        </div>
-        <div className="bg-white rounded-xl border p-6">
-          <h4 className="font-display font-bold mb-4">📁 Estrutura do banco de imagens (Google Drive)</h4>
-          <pre className="text-xs text-gray-600 bg-gray-50 rounded-lg p-4 font-mono leading-relaxed overflow-x-auto">{`📁 Seazone — Banco de Criativos
-│
-├── 📁 [Nome Exato do Empreendimento]   ← = projeto.nome do briefing
-│   ├── 📁 fachada      → renders, fotos do prédio
-│   ├── 📁 rooftop      → piscina, vista, lifestyle
-│   ├── 📁 regiao       → drone, praia, bairro
-│   ├── 📁 planta       → plantas dos studios
-│   ├── 📁 logo         → logo Seazone, logo SPOT
-│   └── 📁 pin          → pin de localização`}</pre>
-        </div>
-      </div>
-    </section>
-  );
-}
-
-function Footer() {
-  return (
-    <footer className="bg-sea-dark text-white py-10">
-      <div className="max-w-6xl mx-auto px-4 text-center">
-        <div className="flex items-center justify-center gap-3 mb-3">
-          <div className="w-8 h-8 bg-sea-coral rounded-lg flex items-center justify-center">
-            <span className="text-white font-bold text-sm">S</span>
-          </div>
-          <span className="font-display font-bold">Máquina de Criativos</span>
-        </div>
-        <p className="text-white/40 text-sm mb-3">Hackathon Seazone 2025 — Construído com Claude Code</p>
-        <div className="flex justify-center gap-4 text-white/30 text-xs">
-          <span>6 agentes</span><span>·</span>
-          <span>5 peças</span><span>·</span>
-          <span>15+ arquivos</span><span>·</span>
-          <span>0 intervenção</span>
-        </div>
-      </div>
-    </footer>
-  );
-}
-
-function App() {
-  const [section, setSection] = useState('hero');
-  return (
-    <div>
-      <Nav section={section} setSection={setSection}/>
-      <Hero/>
-      <Pipeline/>
-      <Output/>
-      <Tech/>
-      <Footer/>
+      ))}
     </div>
   );
 }
 
-ReactDOM.createRoot(document.getElementById('root')).render(<App/>);
+function AgentHeader({ number, name, status }) {
+  const colors = {
+    idle: 'bg-gray-100 text-gray-400',
+    running: 'bg-yellow-100 text-yellow-700',
+    success: 'bg-emerald-100 text-emerald-700',
+    error: 'bg-red-100 text-red-700',
+  };
+  const labels = {
+    idle: 'Aguardando',
+    running: 'Rodando...',
+    success: 'Aprovado',
+    error: 'Reprovado',
+  };
+  return (
+    <div className="flex items-center justify-between mb-4">
+      <div className="flex items-center gap-3">
+        <span className="text-xs font-mono bg-sea-dark text-white px-2 py-1 rounded">#{number}</span>
+        <h2 className="font-display font-bold text-xl">{name}</h2>
+      </div>
+      <span className={`text-xs font-medium px-3 py-1 rounded-full ${colors[status]}`}>
+        {status === 'running' && <span className="inline-block w-2 h-2 bg-yellow-500 rounded-full mr-1.5 pulse" />}
+        {labels[status]}
+      </span>
+    </div>
+  );
+}
+
+// ============================================================
+// STEP 1 — INPUT URL
+// ============================================================
+
+function Step1_Input({ onSubmit }) {
+  const [url, setUrl] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(null);
+
+  const handleSubmit = async () => {
+    if (!url.trim()) return;
+    setLoading(true);
+    setError(null);
+
+    let briefingUrl = url.trim();
+    if (!briefingUrl.endsWith('/briefing.json')) {
+      briefingUrl = briefingUrl.replace(/\/$/, '') + '/briefing.json';
+    }
+
+    try {
+      const res = await fetch(briefingUrl);
+      if (!res.ok) throw new Error(`Erro ${res.status}: briefing.json não encontrado nesta URL.`);
+      const data = await res.json();
+      onSubmit(data, briefingUrl);
+    } catch (err) {
+      setError(err.message || 'Não foi possível acessar o briefing. Verifique a URL.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="fade-in">
+      <AgentHeader number="01" name="Validador de Briefing" status="idle" />
+      <div className="bg-white rounded-xl border-2 border-dashed border-gray-300 p-8 text-center">
+        <div className="w-16 h-16 bg-sea-dark/5 rounded-2xl flex items-center justify-center text-3xl mx-auto mb-4">📋</div>
+        <h3 className="font-display font-bold text-lg mb-2">Cole a URL do Lovable</h3>
+        <p className="text-sm text-gray-500 mb-6">A máquina vai buscar o briefing.json e validar todas as seções obrigatórias</p>
+        <div className="max-w-xl mx-auto">
+          <div className="flex gap-2">
+            <input
+              type="url"
+              value={url}
+              onChange={e => setUrl(e.target.value)}
+              onKeyDown={e => e.key === 'Enter' && handleSubmit()}
+              placeholder="https://nomedoempreendimento.lovable.app"
+              className="flex-1 border border-gray-300 rounded-lg px-4 py-3 text-sm focus:outline-none focus:border-sea-coral focus:ring-2 focus:ring-sea-coral/20"
+            />
+            <button
+              onClick={handleSubmit}
+              disabled={loading || !url.trim()}
+              className="bg-sea-coral hover:bg-sea-coral/90 disabled:bg-gray-300 text-white font-bold px-6 py-3 rounded-lg text-sm transition-colors flex items-center gap-2"
+            >
+              {loading ? (
+                <><svg className="w-4 h-4 spinner" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3" strokeDasharray="32" strokeLinecap="round"/></svg> Buscando...</>
+              ) : 'Validar'}
+            </button>
+          </div>
+          {error && (
+            <div className="mt-3 bg-red-50 border border-red-200 rounded-lg px-4 py-3 text-sm text-red-700 text-left fade-in">
+              ❌ {error}
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ============================================================
+// STEP 2 — VALIDATION RESULTS
+// ============================================================
+
+function Step2_Validation({ data, url, onApproved, onReset }) {
+  const validation = validateBriefing(data);
+  const projectName = data.projeto?.nome || 'Empreendimento sem nome';
+  const passedCount = validation.results.filter(r => r.passed).length;
+
+  return (
+    <div className="fade-in">
+      <AgentHeader number="01" name="Validador de Briefing" status={validation.allPassed ? 'success' : 'error'} />
+
+      {/* Summary */}
+      <div className={`rounded-xl p-5 mb-6 ${validation.allPassed ? 'bg-emerald-50 border border-emerald-200' : 'bg-red-50 border border-red-200'}`}>
+        <div className="flex items-center justify-between mb-2">
+          <h3 className="font-display font-bold text-lg">
+            {validation.allPassed ? '✅' : '❌'} {projectName}
+          </h3>
+          <span className={`text-sm font-bold ${validation.allPassed ? 'text-emerald-600' : 'text-red-600'}`}>
+            {passedCount}/{validation.results.length} seções
+          </span>
+        </div>
+        <p className="text-sm text-gray-600 mb-1">{url}</p>
+        {validation.allPassed ? (
+          <p className="text-sm text-emerald-700 font-medium">Briefing completo. Pronto para o Agente 02.</p>
+        ) : (
+          <p className="text-sm text-red-700 font-medium">Briefing incompleto. Corrija os itens abaixo no Lovable e rode novamente.</p>
+        )}
+      </div>
+
+      {/* Section by section */}
+      <div className="space-y-3 mb-6">
+        {validation.results.map(section => (
+          <div key={section.key} className={`bg-white rounded-xl border p-4 ${!section.passed ? 'border-red-200' : 'border-gray-200'}`}>
+            <div className="flex items-center gap-2 mb-2">
+              <span className={`text-sm ${section.passed ? 'text-emerald-500' : 'text-red-500'}`}>
+                {section.passed ? '✓' : '✕'}
+              </span>
+              <span className="font-medium text-sm">{section.label}</span>
+              {!section.passed && section.error && (
+                <span className="text-xs bg-red-100 text-red-600 px-2 py-0.5 rounded-full ml-auto">{section.error}</span>
+              )}
+            </div>
+            {section.fields.length > 0 && (
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5 mt-2">
+                {section.fields.map(f => (
+                  <div key={f.path} className={`flex items-center gap-2 text-xs px-2 py-1.5 rounded ${f.passed ? 'bg-gray-50 text-gray-600' : 'bg-red-50 text-red-700'}`}>
+                    <span>{f.passed ? '✓' : '✕'}</span>
+                    <span>{f.label}</span>
+                    {!f.passed && f.error && <span className="ml-auto text-[10px] text-red-500">({f.error})</span>}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        ))}
+      </div>
+
+      {/* Actions */}
+      <div className="flex gap-3">
+        <button onClick={onReset} className="border border-gray-300 text-gray-600 px-4 py-2.5 rounded-lg text-sm hover:bg-gray-50 transition-colors">
+          ← Novo briefing
+        </button>
+        {validation.allPassed && (
+          <button onClick={() => onApproved(data)} className="bg-sea-coral hover:bg-sea-coral/90 text-white font-bold px-6 py-2.5 rounded-lg text-sm transition-colors flex items-center gap-2">
+            Avançar para Agente 02 — Roteirista →
+          </button>
+        )}
+        {!validation.allPassed && (
+          <button onClick={onReset} className="bg-sea-coral hover:bg-sea-coral/90 text-white font-bold px-6 py-2.5 rounded-lg text-sm transition-colors">
+            Corrigir e tentar novamente
+          </button>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ============================================================
+// STEP 3+ — AGENTS 02-06 (Claude Code executes)
+// ============================================================
+
+function Step3_Pipeline({ data, currentAgent }) {
+  const projectName = data.projeto?.nome || 'Empreendimento';
+
+  const agents = [
+    { n:'02', name:'Roteirista', desc:'Criando 5 roteiros cena por cena...', icon:'🎬' },
+    { n:'03', name:'Validador de Roteiro', desc:'Validando roteiros contra o briefing...', icon:'✅' },
+    { n:'04', name:'Diretor Criativo', desc:'Definindo formatos, IAs e prompts...', icon:'🎨' },
+    { n:'05', name:'Executor Criativo', desc:'Gerando criativos via fal.ai...', icon:'⚡' },
+    { n:'06', name:'Validador do Criativo', desc:'Validação final dos arquivos...', icon:'🏆' },
+  ];
+
+  return (
+    <div className="fade-in">
+      <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-4 mb-6">
+        <p className="text-sm text-emerald-700">✅ Briefing <strong>{projectName}</strong> validado. Pipeline em execução.</p>
+      </div>
+
+      <div className="space-y-3">
+        {agents.map((a, i) => {
+          const agentIndex = i + 2; // agents 2-6
+          let status = 'idle';
+          if (agentIndex < currentAgent) status = 'success';
+          else if (agentIndex === currentAgent) status = 'running';
+
+          return (
+            <div key={a.n} className={`bg-white rounded-xl border p-5 transition-all ${status === 'running' ? 'border-yellow-300 shadow-md' : status === 'success' ? 'border-emerald-200' : 'border-gray-200 opacity-60'}`}>
+              <div className="flex items-center gap-4">
+                <div className={`w-10 h-10 rounded-xl flex items-center justify-center text-lg flex-shrink-0
+                  ${status === 'success' ? 'bg-emerald-100' : status === 'running' ? 'bg-yellow-100' : 'bg-gray-100'}`}>
+                  {status === 'success' ? '✓' : a.icon}
+                </div>
+                <div className="flex-1">
+                  <div className="flex items-center gap-2">
+                    <span className="text-[10px] font-mono bg-gray-100 text-gray-500 px-1.5 py-0.5 rounded">#{a.n}</span>
+                    <h3 className="font-display font-bold">{a.name}</h3>
+                  </div>
+                  {status === 'running' && (
+                    <p className="text-sm text-yellow-700 mt-1 flex items-center gap-2">
+                      <span className="w-2 h-2 bg-yellow-500 rounded-full pulse" />
+                      {a.desc}
+                    </p>
+                  )}
+                  {status === 'success' && (
+                    <p className="text-sm text-emerald-600 mt-1">Concluído ✓</p>
+                  )}
+                </div>
+                {status === 'success' && (
+                  <span className="text-xs bg-emerald-100 text-emerald-700 px-2 py-1 rounded-full">Aprovado</span>
+                )}
+                {status === 'running' && (
+                  <svg className="w-5 h-5 text-yellow-500 spinner flex-shrink-0" viewBox="0 0 24 24" fill="none">
+                    <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3" strokeDasharray="32" strokeLinecap="round"/>
+                  </svg>
+                )}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+
+      {currentAgent > 6 && (
+        <div className="mt-6 bg-sea-dark rounded-xl p-6 text-white text-center fade-in">
+          <div className="text-4xl mb-3">🎉</div>
+          <h3 className="font-display font-bold text-xl mb-2">Pacote completo gerado!</h3>
+          <p className="text-white/60 text-sm mb-4">{projectName}</p>
+          <div className="grid grid-cols-3 gap-4 max-w-md mx-auto">
+            <div className="bg-white/10 rounded-lg p-3">
+              <p className="text-lg font-bold">2</p>
+              <p className="text-[10px] text-white/50">Roteiros Monica</p>
+            </div>
+            <div className="bg-white/10 rounded-lg p-3">
+              <p className="text-lg font-bold">6</p>
+              <p className="text-[10px] text-white/50">Vídeos gerados</p>
+            </div>
+            <div className="bg-white/10 rounded-lg p-3">
+              <p className="text-lg font-bold">3</p>
+              <p className="text-[10px] text-white/50">Estáticos</p>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ============================================================
+// MAIN APP
+// ============================================================
+
+function App() {
+  const [step, setStep] = useState(1); // 1=input, 2=validation, 3=pipeline
+  const [briefingData, setBriefingData] = useState(null);
+  const [briefingUrl, setBriefingUrl] = useState('');
+  const [currentAgent, setCurrentAgent] = useState(2);
+
+  const STEPS = ['Briefing', 'Validação', 'Roteiros', 'Validação', 'Direção', 'Execução', 'Validação Final'];
+
+  const handleBriefingLoaded = (data, url) => {
+    setBriefingData(data);
+    setBriefingUrl(url);
+    setStep(2);
+  };
+
+  const handleApproved = (data) => {
+    setStep(3);
+    setCurrentAgent(2);
+  };
+
+  const handleReset = () => {
+    setStep(1);
+    setBriefingData(null);
+    setBriefingUrl('');
+    setCurrentAgent(2);
+  };
+
+  return (
+    <div className="min-h-screen bg-gray-50">
+      <Header />
+      <div className="max-w-4xl mx-auto px-4 py-6">
+        {/* Step indicator */}
+        <div className="mb-6">
+          <StepIndicator steps={STEPS} currentStep={step - 1} />
+        </div>
+
+        {/* Content */}
+        {step === 1 && <Step1_Input onSubmit={handleBriefingLoaded} />}
+        {step === 2 && <Step2_Validation data={briefingData} url={briefingUrl} onApproved={handleApproved} onReset={handleReset} />}
+        {step === 3 && <Step3_Pipeline data={briefingData} currentAgent={currentAgent} />}
+      </div>
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(<App />);
 </script>
 </body>
 </html>
