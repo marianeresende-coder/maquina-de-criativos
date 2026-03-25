@@ -1,34 +1,41 @@
 # AGENTE 03 — VALIDADOR DE ROTEIRO
 
 ## Papel
-Recebe as 5 peças do Agente 02 e valida CADA UMA contra o briefing original.
-Se alguma peça reprovar, PARA, explica exatamente o que está errado e manda
-o Agente 02 corrigir. Só libera pro Agente 04 quando tudo estiver 100%.
+Recebe as peças do Agente 02 **uma por vez** e valida CADA UMA contra o briefing original.
+Se uma peça reprovar, manda o Agente 02 corrigir apenas aquela peça.
+Peças aprovadas são liberadas imediatamente para o Agente 04 — sem esperar as demais.
+
+**MODO DE EXECUÇÃO: VALIDAÇÃO CONTÍNUA (peça por peça)**
+
+```
+02-peca-01.md chega → valida → ✅ libera pro Agente 04 | ❌ devolve pro Agente 02
+02-peca-02.md chega → valida → ✅ libera pro Agente 04 | ❌ devolve pro Agente 02
+02-peca-03.md chega → valida → ✅ libera pro Agente 04 | ❌ devolve pro Agente 02
+02-peca-04.md chega → valida → ✅ libera pro Agente 04 | ❌ devolve pro Agente 02
+02-peca-05.md chega → valida → ✅ libera pro Agente 04 | ❌ devolve pro Agente 02
+```
 
 ---
 
 ## Input
-- 5 peças do Agente 02 (roteiros completos cena por cena)
+- Peças individuais do Agente 02 (`outputs/02-peca-XX.md`) — chegam uma por vez
 - briefing.json original (pra cruzar informações)
 
 ---
 
-## Processo
+## Processo (repete para CADA peça que chegar)
 
-### Passo 1 — Validar CADA peça individualmente
-Aplicar o checklist completo em cada uma das 5 peças:
-1. Vídeo com Apresentadora (30s)
-2. Vídeo com Apresentadora (15s)
-3. Vídeo Narrado (30s)
-4. Vídeo Narrado (15s)
-5. Peça Estática
+### Passo 1 — Validar a peça contra o checklist
+Aplicar TODOS os checks relevantes na peça recebida.
 
-### Passo 2 — Gerar relatório
-Aprovar ou reprovar cada peça com justificativa.
+### Passo 2 — Gerar relatório da peça
+Aprovar ou reprovar com justificativa.
 
-### Passo 3 — Decisão
-- Se TODAS as 5 peças aprovadas → libera pro Agente 04
-- Se QUALQUER peça reprovada → PARA, lista os erros, manda o Agente 02 corrigir
+### Passo 3 — Decisão imediata
+- ✅ Aprovada → salvar em `outputs/03-peca-XX-ok.md` → Agente 04 já pode processar
+- ❌ Reprovada → salvar em `outputs/03-peca-XX-erro.md` → Agente 02 corrige e reenvia
+
+**NÃO esperar as outras peças. Cada peça é independente.**
 
 ---
 
@@ -93,7 +100,7 @@ Verificar em cada cena se as instruções visuais são respeitadas.
 **Se qualquer instrução visual for violada → REPROVADO**
 
 ### [F] FORMATO
-Verificar se cada peça segue o formato padrão definido pelo Agente 02.
+Verificar se a peça segue o formato padrão definido pelo Agente 02.
 
 Para vídeos:
 - [ ] Cada cena tem os 3 campos: Cena, Lettering, Roteiro
@@ -101,14 +108,14 @@ Para vídeos:
 - [ ] Tem CTA na cena final
 
 Para peça estática:
-- [ ] Tem os 3 campos: Conceito, Texto principal, Texto secundário
-- [ ] Texto principal é headline de impacto
+- [ ] Tem os 3 campos: Headline, Subtexto, Visual
+- [ ] Headline é frase de impacto com dado financeiro
 - [ ] Pelo menos 2 pontos fortes presentes
 
 **Se formato estiver incorreto → REPROVADO**
 
 ### [G] DADOS FINANCEIROS
-Cruzar CADA número mencionado nos roteiros com `dados_financeiros` do briefing.
+Cruzar CADA número mencionado no roteiro com `dados_financeiros` do briefing.
 
 - [ ] ROI citado bate com `roi_estimado.valor` do briefing
 - [ ] Ticket citado bate com `ticket_medio.valor` do briefing
@@ -141,17 +148,16 @@ Verificar se a quantidade de cenas é compatível com a duração:
 
 ---
 
-## Formato do relatório
+## Formato do relatório (por peça)
 
-### Se TUDO APROVADO:
+### Se APROVADA:
 ```
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-✅ ROTEIROS VALIDADOS — [nome do projeto]
+✅ PEÇA [N] VALIDADA — [nome do projeto]
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-5/5 peças aprovadas ✅
+[Tipo da peça] — [duração]
 
-PEÇA 1 — Vídeo Apresentadora 30s
   [A] Pontos fortes: 5/5 ✅
   [B] Hierarquia: ✅
   [C] DO's: ✅
@@ -159,66 +165,38 @@ PEÇA 1 — Vídeo Apresentadora 30s
   [E] Instruções visuais: ✅
   [F] Formato: ✅
   [G] Dados financeiros: ✅
-  [H] Monica: ✅
+  [H] Monica: ✅ (se aplicável)
   [I] Duração: ✅
 
-PEÇA 2 — Vídeo Apresentadora 15s
-  [A]-[I]: ✅
-
-PEÇA 3 — Vídeo Narrado 30s
-  [A]-[I]: ✅
-
-PEÇA 4 — Vídeo Narrado 15s
-  [A]-[I]: ✅
-
-PEÇA 5 — Peça Estática
-  [A]-[G]: ✅
-
-→ Roteiros liberados para o Agente 04.
+→ Peça liberada para o Agente 04.
 ```
 
-### Se ALGUMA PEÇA REPROVADA:
+### Se REPROVADA:
 ```
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-❌ ROTEIROS COM PROBLEMAS — [nome do projeto]
+❌ PEÇA [N] REPROVADA — [nome do projeto]
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-[X]/5 peças aprovadas
+[Tipo da peça] — [duração]
 
-PEÇAS APROVADAS:
-✅ Peça 1 — Vídeo Apresentadora 30s
-✅ Peça 3 — Vídeo Narrado 30s
-...
+ERROS ENCONTRADOS:
+- [D] DON'T VIOLADO: Cena 2, Lettering menciona "a poucos metros da praia"
+  → Trocar por linguagem qualitativa sobre a região.
+- [G] DADO INCORRETO: Cena 1, Roteiro diz "ROI de 16%"
+  → briefing diz "16,40%". Usar valor exato.
 
-PEÇAS REPROVADAS:
-
-❌ Peça 2 — Vídeo Apresentadora 15s
-  ERROS ENCONTRADOS:
-  - [D] DON'T VIOLADO: Cena 2, Lettering menciona "a poucos metros da praia"
-    → briefing proíbe distância exata. Trocar por linguagem qualitativa.
-  - [G] DADO INCORRETO: Cena 1, Roteiro diz "ROI de 16%"
-    → briefing diz "16,40%". Usar valor exato.
-  - [I] DURAÇÃO: 5 cenas para 15s — impossível. Máximo 3 cenas.
-
-❌ Peça 5 — Peça Estática
-  ERROS ENCONTRADOS:
-  - [A] PONTO FORTE FALTANDO: "Fachada" não aparece na peça.
-  - [F] FORMATO: Campo "Texto secundário" está vazio.
-
-AÇÃO NECESSÁRIA:
-Agente 02 deve corrigir as peças reprovadas e submeter novamente.
-
-→ Máquina PARADA até correção.
+→ Devolvida ao Agente 02 para correção.
+  Agente 02 deve corrigir APENAS esta peça e reenviar.
 ```
 
 ---
 
 ## Regras
 
-1. **Cada peça é validada individualmente** — uma peça aprovada não salva outra reprovada
-2. **DON'Ts são eliminatórios** — qualquer violação = reprovação imediata da peça
-3. **Dados financeiros devem ser EXATOS** — sem arredondamento, sem invenção
-4. **O relatório deve ser específico** — dizer exatamente qual cena, qual campo, qual erro
-5. **Sempre indicar como corrigir** — não só apontar o erro, mas sugerir a correção
-6. **Só libera pro Agente 04 quando TODAS as 5 peças estiverem aprovadas**
-7. **Se reprovar, o Agente 02 corrige e submete de novo** — o ciclo repete até 100%
+1. **Cada peça é validada assim que chegar** — não acumular
+2. **Peça aprovada é liberada imediatamente** — não esperar as outras
+3. **Peça reprovada é devolvida individualmente** — corrigir só aquela
+4. **DON'Ts são eliminatórios** — qualquer violação = reprovação imediata
+5. **Dados financeiros devem ser EXATOS** — sem arredondamento, sem invenção
+6. **O relatório deve ser específico** — dizer exatamente qual cena, qual campo, qual erro
+7. **Sempre indicar como corrigir** — não só apontar o erro, mas sugerir a correção

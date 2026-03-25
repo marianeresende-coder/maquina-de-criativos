@@ -5,12 +5,20 @@ Recebe o briefing validado pelo Agente 01 e cria roteiros completos,
 prontos para produção, para 5 peças criativas. Cada roteiro é detalhado
 cena por cena, com campos de Cena, Lettering e Roteiro.
 
-**IMPORTANTE — Execução em 2 partes para performance:**
-- **Parte A**: Peças 1, 2 e 3 (vídeos com apresentadora + vídeo narrado 30s)
-- **Parte B**: Peças 4 e 5 (vídeo narrado 15s + peça estática)
+**MODO DE EXECUÇÃO: ENTREGA CONTÍNUA (peça por peça)**
 
-Salvar cada parte em arquivo separado (`outputs/02a-roteiros.md` e `outputs/02b-roteiros.md`),
-depois consolidar em `outputs/02-roteiros.md` para o Agente 03.
+O agente gera e entrega UMA peça por vez. Cada peça é salva imediatamente
+em seu próprio arquivo e liberada para o Agente 03 validar em paralelo.
+NÃO esperar terminar todas as peças para começar a entregar.
+
+Fluxo:
+```
+Peça 1 gerada → salva → Agente 03 valida Peça 1
+Peça 2 gerada → salva → Agente 03 valida Peça 2
+Peça 3 gerada → salva → Agente 03 valida Peça 3
+Peça 4 gerada → salva → Agente 03 valida Peça 4
+Peça 5 gerada → salva → Agente 03 valida Peça 5
+```
 
 ---
 
@@ -21,7 +29,7 @@ briefing.json validado (todas as 9 seções presentes e aprovadas pelo Agente 01
 
 ## O que ele faz
 
-### 1. Leitura do briefing
+### 1. Leitura do briefing (uma vez, antes de tudo)
 Antes de criar qualquer coisa, o agente lê e absorve:
 - `dados_financeiros` — todos os números exatos (nunca inventar dados)
 - `pontos_fortes.hierarquia` — respeitar a ordem de prioridade (posição 1→5)
@@ -32,7 +40,7 @@ Antes de criar qualquer coisa, o agente lê e absorve:
 - `perfil_hospede` — quem vai se hospedar
 - `estrutura_criativos` — pontos obrigatórios, formatos, instruções visuais obrigatórias
 
-### 2. Decisão criativa
+### 2. Decisão criativa (uma vez, antes de tudo)
 Com base no briefing, o agente decide SOZINHO:
 - Quantas cenas cada vídeo terá
 - A ordem dos takes (qual cena vem primeiro, segunda, etc.)
@@ -42,22 +50,26 @@ Com base no briefing, o agente decide SOZINHO:
 
 Decisões devem ser JUSTIFICADAS pelo briefing (não por achismo).
 
-### 3. Geração das peças (em 2 partes)
-**Parte A** → Peças 1, 2 e 3 → salvar em `outputs/02a-roteiros.md`
-**Parte B** → Peças 4 e 5 → salvar em `outputs/02b-roteiros.md`
+### 3. Geração das peças (uma por vez, entrega imediata)
+
+**Ordem de geração:**
+1. Gerar Peça 1 → salvar em `outputs/02-peca-01.md` → liberar pro Agente 03
+2. Gerar Peça 2 → salvar em `outputs/02-peca-02.md` → liberar pro Agente 03
+3. Gerar Peça 3 → salvar em `outputs/02-peca-03.md` → liberar pro Agente 03
+4. Gerar Peça 4 → salvar em `outputs/02-peca-04.md` → liberar pro Agente 03
+5. Gerar Peça 5 → salvar em `outputs/02-peca-05.md` → liberar pro Agente 03
+
+**IMPORTANTE:** Não acumular. Salvou o arquivo = próximo agente já pode processar.
 
 ---
 
 ## Peças a entregar
 
-### PARTE A
-- PEÇA 1 — Vídeo com Apresentadora (30s)
-- PEÇA 2 — Vídeo com Apresentadora (15s)
-- PEÇA 3 — Vídeo Narrado (30s)
-
-### PARTE B
-- PEÇA 4 — Vídeo Narrado (15s)
-- PEÇA 5 — Peça Estática
+- PEÇA 1 — Vídeo com Apresentadora (30s) → `outputs/02-peca-01.md`
+- PEÇA 2 — Vídeo com Apresentadora (15s) → `outputs/02-peca-02.md`
+- PEÇA 3 — Vídeo Narrado (30s) → `outputs/02-peca-03.md`
+- PEÇA 4 — Vídeo Narrado (15s) → `outputs/02-peca-04.md`
+- PEÇA 5 — Peça Estática → `outputs/02-peca-05.md`
 
 ---
 
@@ -187,30 +199,15 @@ Empreendimento: [nome do projeto]
 
 ## Output
 
-O Agente 02 entrega em 2 etapas, depois consolida:
+Cada peça é salva individualmente assim que finalizada:
 
-**Etapa 1 → `outputs/02a-roteiros.md`**
 ```
-ROTEIROS PARTE A — [Nome do Empreendimento]
-Gerado pelo Agente 02 — Roteirista
-
-1. Vídeo com Apresentadora (30s) .......... [X cenas]
-2. Vídeo com Apresentadora (15s) .......... [X cenas]
-3. Vídeo Narrado (30s) .................... [X cenas]
-
-[roteiros completos abaixo]
+outputs/02-peca-01.md  ← Vídeo Apresentadora 30s (liberado imediatamente)
+outputs/02-peca-02.md  ← Vídeo Apresentadora 15s (liberado imediatamente)
+outputs/02-peca-03.md  ← Vídeo Narrado 30s (liberado imediatamente)
+outputs/02-peca-04.md  ← Vídeo Narrado 15s (liberado imediatamente)
+outputs/02-peca-05.md  ← Peça Estática (liberado imediatamente)
 ```
 
-**Etapa 2 → `outputs/02b-roteiros.md`**
-```
-ROTEIROS PARTE B — [Nome do Empreendimento]
-Gerado pelo Agente 02 — Roteirista
-
-4. Vídeo Narrado (15s) .................... [X cenas]
-5. Peça Estática .......................... [1 peça]
-
-[roteiros completos abaixo]
-```
-
-**Consolidação → `outputs/02-roteiros.md`**
-Juntar Parte A + Parte B no arquivo final para o Agente 03.
+Cada arquivo contém o roteiro completo da peça, pronto pro Agente 03 validar.
+O Agente 03 NÃO precisa esperar todas as 5 — valida cada uma assim que chegar.
