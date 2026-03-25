@@ -6,9 +6,10 @@ module.exports = async function handler(req, res) {
     return res.status(405).json({ error: "Method not allowed" });
   }
 
-  const { prompt, engine, format } = req.body;
+  const { prompt, engine, format, referenceImageUrl } = req.body;
   // engine: "flux" or "recraft"
   // format: "9:16", "4:5", "1:1"
+  // referenceImageUrl: optional Drive image URL for image-to-image
 
   if (!prompt || !engine) {
     return res.status(400).json({ error: "prompt and engine required" });
@@ -25,6 +26,8 @@ module.exports = async function handler(req, res) {
 
   let endpoint, body;
 
+  const useReference = !!referenceImageUrl;
+
   if (engine === "flux") {
     endpoint = "https://fal.run/fal-ai/flux-pro/v1.1";
     body = {
@@ -33,8 +36,14 @@ module.exports = async function handler(req, res) {
       num_images: 1,
       safety_tolerance: "5",
     };
+    if (useReference) {
+      body.image_url = referenceImageUrl;
+      body.strength = 0.65; // Keep 35% of original, 65% AI generation
+    }
   } else if (engine === "recraft") {
-    endpoint = "https://fal.run/fal-ai/recraft/v3/text-to-image";
+    endpoint = useReference
+      ? "https://fal.run/fal-ai/recraft/v3/image-to-image"
+      : "https://fal.run/fal-ai/recraft/v3/text-to-image";
     body = {
       prompt,
       image_size: recraftSizes[format] || "portrait_16_9",
@@ -45,6 +54,9 @@ module.exports = async function handler(req, res) {
         { r: 255, g: 255, b: 255 },
       ],
     };
+    if (useReference) {
+      body.image_url = referenceImageUrl;
+    }
   } else {
     return res.status(400).json({ error: "engine must be 'flux' or 'recraft'" });
   }

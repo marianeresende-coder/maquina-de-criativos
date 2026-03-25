@@ -650,14 +650,39 @@ function Step3_Pipeline({ data, onReset }) {
     }
   }, [allRoteiros]);
 
-  // --- Agent 04: Generate direction ---
+  // --- Agent 04: Generate direction (with Drive references) ---
   const runDirection = async () => {
     setDirStatus('running');
     try {
+      // Fetch reference images from both Drive folders
+      const DRIVE_FOLDERS = [
+        { id: '1rew277kYACg3rnXohORpI3zbWXFesfAl', label: 'Imagens gerais (fachada, rooftop, renders)' },
+        { id: '1aCBvn144SF788d4azGANVe0VMGXRY1cR', label: 'Imagens de drone (aéreas, praia, região)' },
+      ];
+
+      let driveImages = [];
+      for (const folder of DRIVE_FOLDERS) {
+        try {
+          const driveRes = await fetch('/api/list-drive', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ folderId: folder.id }),
+          });
+          const driveData = await driveRes.json();
+          if (driveData.files) {
+            driveImages = [...driveImages, ...driveData.files.map(f => ({ ...f, folder: folder.label }))];
+          }
+        } catch {}
+      }
+
+      const driveInfo = driveImages.length > 0
+        ? `\n\n# IMAGENS DE REFERÊNCIA DISPONÍVEIS NO DRIVE (${driveImages.length} imagens)\nUse estas como referência (image-to-image) sempre que possível:\n${driveImages.map(f => `- ${f.name} (${f.folder}) → ${f.url}`).join('\n')}`
+        : '\n\n# SEM IMAGENS DE REFERÊNCIA\nGere tudo do zero via text-to-image.';
+
       const res = await fetch('/api/generate-direction', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ briefing: data, roteiros: roteiroTexts }),
+        body: JSON.stringify({ briefing: data, roteiros: roteiroTexts, driveImages: driveInfo }),
       });
       const result = await res.json();
       if (!res.ok) throw new Error(result.error || 'Erro no Agente 04');
@@ -696,7 +721,7 @@ function Step3_Pipeline({ data, onReset }) {
             const res = await fetch('/api/generate-image', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ prompt, engine: eng, format: scene.format || '9:16' }),
+              body: JSON.stringify({ prompt, engine: eng, format: scene.format || '9:16', referenceImageUrl: scene.referenceImageUrl || null }),
             });
             const result = await res.json();
             if (result.url) {
