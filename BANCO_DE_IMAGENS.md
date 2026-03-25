@@ -1,7 +1,16 @@
 # BANCO DE IMAGENS — Regra de Organização
 
 ## Onde
-Google Drive — pasta compartilhada "Seazone — Banco de Criativos"
+Google Drive — pastas públicas do empreendimento.
+
+### Links diretos — Novo Campeche SPOT II
+| Pasta | Link público |
+|-------|-------------|
+| **Imagens gerais** (fachada, rooftop, renders, etc.) | https://drive.google.com/drive/folders/1rew277kYACg3rnXohORpI3zbWXFesfAl |
+| **Imagens de drone** (aéreas, praia, região) | https://drive.google.com/drive/folders/1aCBvn144SF788d4azGANVe0VMGXRY1cR |
+
+Os agentes devem acessar essas pastas diretamente para baixar imagens de referência.
+Se a imagem necessária não existir em nenhuma das pastas, a IA gera do zero via prompt.
 
 ## Estrutura obrigatória
 

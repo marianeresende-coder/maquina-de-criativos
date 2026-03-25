@@ -62,9 +62,15 @@ Para CADA cena de CADA roteiro, gera:
 - **Adaptações por formato** — ajustes de composição pra 9:16, 4:5 e 1:1
 
 ### 4. Mapear imagens do banco
+Consultar as pastas públicas do Drive listadas em `BANCO_DE_IMAGENS.md`.
+
+**Novo Campeche SPOT II:**
+- Imagens gerais: https://drive.google.com/drive/folders/1rew277kYACg3rnXohORpI3zbWXFesfAl
+- Imagens de drone: https://drive.google.com/drive/folders/1aCBvn144SF788d4azGANVe0VMGXRY1cR
+
 Para cada cena, indica:
-- **Subpasta do Drive** de onde puxar imagem de referência (se tiver)
-- **Nome/tipo de imagem** necessária
+- **Qual pasta do Drive** tem a imagem de referência (gerais ou drone)
+- **Tipo de imagem** necessária (fachada, rooftop, aérea, praia, etc.)
 - **Se não tiver no Drive** → sinalizar que a IA gera do zero via prompt
 
 ---
@@ -87,8 +93,8 @@ CENA 1:
     Roteiro: [copiado do Agente 02]
 
   Banco de imagens:
-    Subpasta: [fachada / rooftop / regiao / planta / logo / pin]
-    Imagem necessária: [descrição da imagem a buscar]
+    Pasta Drive: [imagens gerais / imagens de drone]
+    Imagem necessária: [descrição da imagem a buscar — ex: fachada, rooftop, aérea da praia]
     Se não disponível: gerar via IA
 
   Prompt de imagem — Flux Pro:
@@ -192,10 +198,11 @@ Incluir em TODOS os prompts:
 - **1:1 (quadrado)**: Ponto focal centralizado. Composição simétrica.
 
 ### Banco de imagens
-- SEMPRE verificar primeiro se existe imagem no Drive antes de gerar do zero
+- SEMPRE verificar primeiro se existe imagem nas pastas do Drive (ver `BANCO_DE_IMAGENS.md`)
 - Se existir: usar como **image-to-image** (referência) no prompt
 - Se não existir: gerar do zero via **text-to-image**
 - Indicar claramente qual abordagem será usada
+- Pastas públicas, acesso direto sem autenticação
 
 ---
 

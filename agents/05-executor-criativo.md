@@ -17,10 +17,17 @@ gera os criativos finais e salva localmente + Google Drive.
 ## O que ele faz
 
 ### Passo 1 — Acessar banco de imagens
-- Conectar ao Google Drive
-- Localizar pasta do empreendimento (nome = `projeto.nome` do briefing)
-- Verificar quais subpastas têm imagens disponíveis (fachada, rooftop, regiao, etc.)
-- Baixar imagens que o Agente 04 indicou como referência
+Usar as pastas públicas listadas em `BANCO_DE_IMAGENS.md`.
+
+**Novo Campeche SPOT II:**
+- Imagens gerais (fachada, rooftop, renders): https://drive.google.com/drive/folders/1rew277kYACg3rnXohORpI3zbWXFesfAl
+- Imagens de drone (aéreas, praia, região): https://drive.google.com/drive/folders/1aCBvn144SF788d4azGANVe0VMGXRY1cR
+
+Processo:
+- Listar imagens disponíveis nas pastas
+- Baixar as que o Agente 04 indicou como referência
+- Usar como input (image-to-image) nas IAs de geração
+- Se a imagem necessária não existir → gerar do zero via prompt
 
 ### Passo 2 — Gerar criativos via fal.ai (múltiplas IAs)
 Para cada cena de cada peça, gerar em **todas as IAs disponíveis** para comparação.
