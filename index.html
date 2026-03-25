@@ -267,7 +267,15 @@ function Step1_Input({ onSubmit }) {
     }
 
     try {
-      const res = await fetch(briefingUrl);
+      // Try direct fetch first, then CORS proxy as fallback
+      let res;
+      try {
+        res = await fetch(briefingUrl);
+      } catch (corsErr) {
+        // CORS blocked — use proxy
+        const proxyUrl = `https://api.allorigins.win/raw?url=${encodeURIComponent(briefingUrl)}`;
+        res = await fetch(proxyUrl);
+      }
       if (!res.ok) throw new Error(`Erro ${res.status}: briefing.json não encontrado nesta URL.`);
       const data = await res.json();
       onSubmit(data, briefingUrl);
