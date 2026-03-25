@@ -8,9 +8,9 @@ gera os criativos finais e salva localmente + Google Drive.
 ---
 
 ## Input
-- Direção criativa completa do Agente 04 (prompts, formatos, mapeamento de imagens)
+- Direção criativa completa do Agente 04 (prompts por IA, formatos, mapeamento de imagens)
 - Banco de imagens no Google Drive (pasta do empreendimento)
-- API key da fal.ai
+- API key da fal.ai (uma key pra todas as IAs: Flux Pro, Recraft, Kling, Minimax, Luma)
 
 ---
 
@@ -22,86 +22,101 @@ gera os criativos finais e salva localmente + Google Drive.
 - Verificar quais subpastas têm imagens disponíveis (fachada, rooftop, regiao, etc.)
 - Baixar imagens que o Agente 04 indicou como referência
 
-### Passo 2 — Gerar criativos via fal.ai
-Para cada cena de cada peça, seguindo exatamente o que o Agente 04 definiu:
+### Passo 2 — Gerar criativos via fal.ai (múltiplas IAs)
+Para cada cena de cada peça, gerar em **todas as IAs disponíveis** para comparação.
+Seguir exatamente os prompts que o Agente 04 definiu para cada IA.
 
 **Peças 1 e 2 — Vídeo com Apresentadora (30s e 15s):**
 - NÃO gera vídeo por IA (apresentadora é gravação humana)
 - Entrega apenas o **roteiro final formatado** pronto pra Monica gravar
-- Gera as **imagens de apoio** que aparecem no vídeo (fachada, drone, rooftop) nos 3 formatos
+- Gera as **imagens de apoio** em **2 IAs**: Flux Pro + Recraft V3
+- Nos 3 formatos cada: Reels (9:16), Feed (4:5), Story (9:16)
 
 **Peça 3 — Vídeo Narrado 30s:**
-- Gera frame-chave de cada cena via **Flux Pro** (imagem)
-- Anima cada frame via **Kling** ou **Minimax** (vídeo)
+- Gera frame-chave de cada cena em **2 IAs**: Flux Pro + Recraft V3
+- Anima cada frame em **3 IAs**: Kling + Minimax + Luma Ray 2
 - Gera nos 3 formatos: Reels (9:16), Feed (4:5), Story (9:16)
-- Total: 3 vídeos finais
+- Total por cena: 2 opções de imagem + 3 opções de vídeo
 
 **Peça 4 — Vídeo Narrado 15s:**
 - Mesmo processo da peça 3
-- Total: 3 vídeos finais
 
 **Peça 5 — Peça Estática:**
-- Gera imagem via **Flux Pro**
+- Gera imagem em **2 IAs**: Flux Pro + Recraft V3
 - Gera nos 3 formatos: 9:16, 4:5, 1:1
-- Total: 3 imagens finais
+- Total: 6 imagens (2 IAs × 3 formatos)
 
 ### Passo 3 — Salvar resultados
 Salvar em DOIS lugares:
 
 **Local (pasta do projeto):**
+Cada IA salva em subpasta própria para comparação.
 ```
 outputs/[nome-do-empreendimento]/
 ├── apresentadora-30s/
 │   ├── roteiro-final.md
-│   ├── apoio-reels-9x16/
-│   │   ├── cena1.png
-│   │   ├── cena2.png
-│   │   └── ...
-│   ├── apoio-feed-4x5/
-│   │   └── ...
-│   └── apoio-story-9x16/
-│       └── ...
+│   ├── flux-pro/
+│   │   ├── apoio-reels-9x16/
+│   │   ├── apoio-feed-4x5/
+│   │   └── apoio-story-9x16/
+│   └── recraft/
+│       ├── apoio-reels-9x16/
+│       ├── apoio-feed-4x5/
+│       └── apoio-story-9x16/
 ├── apresentadora-15s/
 │   ├── roteiro-final.md
-│   ├── apoio-reels-9x16/
-│   ├── apoio-feed-4x5/
-│   └── apoio-story-9x16/
+│   ├── flux-pro/
+│   └── recraft/
 ├── narrado-30s/
-│   ├── reels-9x16.mp4
-│   ├── feed-4x5.mp4
-│   └── story-9x16.mp4
+│   ├── flux-pro/         ← frames-chave
+│   ├── recraft/          ← frames-chave
+│   ├── kling/            ← vídeos animados
+│   │   ├── reels-9x16.mp4
+│   │   ├── feed-4x5.mp4
+│   │   └── story-9x16.mp4
+│   ├── minimax/
+│   │   └── ...
+│   └── luma/
+│       └── ...
 ├── narrado-15s/
-│   ├── reels-9x16.mp4
-│   ├── feed-4x5.mp4
-│   └── story-9x16.mp4
+│   ├── flux-pro/
+│   ├── recraft/
+│   ├── kling/
+│   ├── minimax/
+│   └── luma/
 └── estatico/
-    ├── reels-story-9x16.png
-    ├── feed-4x5.png
-    └── feed-1x1.png
+    ├── flux-pro/
+    │   ├── reels-story-9x16.png
+    │   ├── feed-4x5.png
+    │   └── feed-1x1.png
+    └── recraft/
+        ├── reels-story-9x16.png
+        ├── feed-4x5.png
+        └── feed-1x1.png
 ```
 
 **Google Drive (pasta do empreendimento):**
+Mesma estrutura do local — separado por IA para fácil comparação.
 ```
 📁 [Nome do Empreendimento]/
 ├── 📁 criativos-gerados/          ← nova pasta criada pelo agente
 │   ├── 📁 apresentadora-30s/
 │   │   ├── roteiro-final.md
-│   │   └── 📁 imagens-apoio/
+│   │   ├── 📁 flux-pro/
+│   │   └── 📁 recraft/
 │   ├── 📁 apresentadora-15s/
 │   │   ├── roteiro-final.md
-│   │   └── 📁 imagens-apoio/
+│   │   ├── 📁 flux-pro/
+│   │   └── 📁 recraft/
 │   ├── 📁 narrado-30s/
-│   │   ├── reels-9x16.mp4
-│   │   ├── feed-4x5.mp4
-│   │   └── story-9x16.mp4
+│   │   ├── 📁 flux-pro/   📁 recraft/
+│   │   ├── 📁 kling/   📁 minimax/   📁 luma/
 │   ├── 📁 narrado-15s/
-│   │   ├── reels-9x16.mp4
-│   │   ├── feed-4x5.mp4
-│   │   └── story-9x16.mp4
+│   │   ├── 📁 flux-pro/   📁 recraft/
+│   │   ├── 📁 kling/   📁 minimax/   📁 luma/
 │   └── 📁 estatico/
-│       ├── reels-story-9x16.png
-│       ├── feed-4x5.png
-│       └── feed-1x1.png
+│       ├── 📁 flux-pro/
+│       └── 📁 recraft/
 ├── 📁 fachada/                     ← pastas originais do banco
 ├── 📁 rooftop/
 ├── 📁 regiao/
@@ -156,19 +171,20 @@ OBSERVAÇÕES PARA GRAVAÇÃO:
 
 ## Chamadas à API — Referência técnica
 
+> Todas via fal.ai, mesma API key ($FAL_KEY).
+
 ### Flux Pro (imagem)
 ```bash
 curl -X POST "https://fal.run/fal-ai/flux-pro/v1.1" \
   -H "Authorization: Key $FAL_KEY" \
   -H "Content-Type: application/json" \
   -d '{
-    "prompt": "[prompt do Agente 04]",
+    "prompt": "[prompt Flux do Agente 04]",
     "image_size": "[portrait_16_9 / portrait_4_5 / square]",
     "num_images": 1,
     "safety_tolerance": "5"
   }'
 ```
-Resposta: URL da imagem gerada → baixar e salvar
 
 ### Flux Pro image-to-image (quando tem referência do Drive)
 ```bash
@@ -176,11 +192,46 @@ curl -X POST "https://fal.run/fal-ai/flux-pro/v1.1" \
   -H "Authorization: Key $FAL_KEY" \
   -H "Content-Type: application/json" \
   -d '{
-    "prompt": "[prompt do Agente 04]",
+    "prompt": "[prompt Flux do Agente 04]",
     "image_url": "[URL da imagem de referência do Drive]",
     "image_size": "[formato]",
     "num_images": 1,
     "strength": 0.75
+  }'
+```
+
+### Recraft V3 (imagem)
+```bash
+curl -X POST "https://fal.run/fal-ai/recraft/v3/text-to-image" \
+  -H "Authorization: Key $FAL_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "prompt": "[prompt Recraft do Agente 04]",
+    "image_size": "[portrait_16_9 / portrait_4_3 / square_hd]",
+    "style": "realistic_image",
+    "colors": [
+      {"r": 1, "g": 19, "b": 55},
+      {"r": 241, "g": 96, "b": 93},
+      {"r": 255, "g": 255, "b": 255}
+    ]
+  }'
+```
+
+### Recraft V3 image-to-image (quando tem referência do Drive)
+```bash
+curl -X POST "https://fal.run/fal-ai/recraft/v3/image-to-image" \
+  -H "Authorization: Key $FAL_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "prompt": "[prompt Recraft do Agente 04]",
+    "image_url": "[URL da imagem de referência do Drive]",
+    "image_size": "[formato]",
+    "style": "realistic_image",
+    "colors": [
+      {"r": 1, "g": 19, "b": 55},
+      {"r": 241, "g": 96, "b": 93},
+      {"r": 255, "g": 255, "b": 255}
+    ]
   }'
 ```
 
@@ -190,22 +241,33 @@ curl -X POST "https://fal.run/fal-ai/kling-video/v2/master" \
   -H "Authorization: Key $FAL_KEY" \
   -H "Content-Type: application/json" \
   -d '{
-    "prompt": "[prompt de vídeo do Agente 04]",
+    "prompt": "[prompt Kling do Agente 04]",
     "duration": "5",
     "aspect_ratio": "[9:16 / 4:5]",
-    "image_url": "[URL do frame-chave gerado pelo Flux]"
+    "image_url": "[URL do frame-chave]"
   }'
 ```
-Resposta: URL do vídeo gerado → baixar e salvar
 
-### Minimax (vídeo alternativo)
+### Minimax (vídeo)
 ```bash
 curl -X POST "https://fal.run/fal-ai/minimax-video" \
   -H "Authorization: Key $FAL_KEY" \
   -H "Content-Type: application/json" \
   -d '{
-    "prompt": "[prompt de vídeo do Agente 04]",
+    "prompt": "[prompt Minimax do Agente 04]",
     "image_url": "[URL do frame-chave]"
+  }'
+```
+
+### Luma Dream Machine Ray 2 (vídeo)
+```bash
+curl -X POST "https://fal.run/fal-ai/luma-dream-machine/ray-2/image-to-video" \
+  -H "Authorization: Key $FAL_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "prompt": "[prompt Luma do Agente 04]",
+    "image_url": "[URL do frame-chave]",
+    "aspect_ratio": "[16:9 / 9:16 / 4:3 / 3:4]"
   }'
 ```
 
@@ -218,10 +280,10 @@ curl -X POST "https://fal.run/fal-ai/minimax-video" \
 1. Ler roteiro validado
 2. Para cada cena:
    a. Verificar banco de imagens no Drive
-   b. Se tem imagem → usar como referência (image-to-image)
-   c. Se não tem → gerar do zero (text-to-image)
-   d. Gerar imagem de apoio nos 3 formatos via Flux Pro
-   e. Salvar imagens
+   b. Se tem imagem → image-to-image, senão → text-to-image
+   c. Gerar imagem de apoio nos 3 formatos via Flux Pro
+   d. Gerar imagem de apoio nos 3 formatos via Recraft V3
+   e. Salvar em subpastas separadas (flux-pro/ e recraft/)
 3. Montar roteiro final formatado
 4. Salvar local + Drive
 ```
@@ -232,9 +294,12 @@ curl -X POST "https://fal.run/fal-ai/minimax-video" \
 2. Para cada cena:
    a. Verificar banco de imagens no Drive
    b. Gerar frame-chave via Flux Pro (3 formatos)
-   c. Animar frame via Kling ou Minimax (3 formatos de vídeo)
-   d. Salvar frames + vídeos
-3. Concatenar cenas em vídeo final (por formato)
+   c. Gerar frame-chave via Recraft V3 (3 formatos)
+   d. Animar frame via Kling (3 formatos de vídeo)
+   e. Animar frame via Minimax (3 formatos de vídeo)
+   f. Animar frame via Luma Ray 2 (3 formatos de vídeo)
+   g. Salvar tudo em subpastas por IA
+3. Concatenar cenas em vídeo final (por formato, por IA)
 4. Salvar local + Drive
 ```
 
@@ -242,8 +307,9 @@ curl -X POST "https://fal.run/fal-ai/minimax-video" \
 ```
 1. Ler roteiro validado + direção criativa
 2. Verificar banco de imagens no Drive
-3. Gerar imagem base via Flux Pro (3 formatos)
-4. Salvar local + Drive
+3. Gerar imagem via Flux Pro (3 formatos)
+4. Gerar imagem via Recraft V3 (3 formatos)
+5. Salvar local + Drive (subpastas por IA)
 ```
 
 ---

@@ -30,31 +30,35 @@ Para CADA uma das 5 peças, gera versões nos 3 formatos:
 - Feed (4:5) — 1080×1350
 - Feed quadrado (1:1) — 1080×1080
 
-### 2. Escolher ferramenta de IA por cena
-Para cada cena de cada roteiro, define qual ferramenta usar:
+### 2. Escolher ferramentas de IA por cena
+Para cada cena, o agente gera em **múltiplas IAs** para comparar e escolher o melhor resultado.
 
 **Para imagens (estáticos + frames-chave de vídeo):**
-- **Flux Pro** (via fal.ai) — qualidade premium, fotorrealístico
-- Quando usar: fachada, rooftop, paisagem, composições complexas
+- **Flux Pro** (via fal.ai) — fotorrealístico, melhor em arquitetura e composições complexas
+- **Recraft V3** (via fal.ai) — cores vibrantes, estilo editorial, suporta paleta de cores customizada
 
 **Para vídeos (animação de cenas):**
-- **Kling** (via fal.ai) — melhor pra cenas com movimento, pessoas, câmera
-- **Minimax** (via fal.ai) — alternativa pra cenas mais simples
-- Quando usar: drone, transições, lifestyle, água/vapor
+- **Kling** (via fal.ai) — melhor pra cenas com movimento de câmera, pessoas, transições
+- **Minimax** (via fal.ai) — bom pra cenas mais simples, texturas, água
+- **Luma Dream Machine Ray 2** (via fal.ai) — melhor pra cenas cinematográficas, drone, paisagens
 
-A escolha é baseada no tipo de cena:
-| Tipo de cena | Imagem (frame) | Vídeo (animação) |
-|-------------|----------------|------------------|
-| Drone/aérea | Flux Pro | Kling |
-| Fachada | Flux Pro | Kling |
-| Rooftop/piscina | Flux Pro | Kling |
-| Paisagem/praia | Flux Pro | Minimax |
-| Detalhe/textura | Flux Pro | Minimax |
+**REGRA: gerar SEMPRE nas 2 IAs de imagem e nas 3 IAs de vídeo.** O Agente 06 seleciona o melhor.
+
+| Tipo de cena | Imagem | Vídeo |
+|-------------|--------|-------|
+| Drone/aérea | Flux Pro + Recraft | Kling + Minimax + Luma |
+| Fachada | Flux Pro + Recraft | Kling + Minimax + Luma |
+| Rooftop/piscina | Flux Pro + Recraft | Kling + Minimax + Luma |
+| Paisagem/praia | Flux Pro + Recraft | Kling + Minimax + Luma |
+| Detalhe/textura | Flux Pro + Recraft | Kling + Minimax + Luma |
 
 ### 3. Criar prompts por cena
 Para CADA cena de CADA roteiro, gera:
-- **Prompt de imagem** (frame-chave) — pra Flux Pro
-- **Prompt de vídeo** (animação) — pra Kling ou Minimax (apenas vídeos)
+- **Prompt de imagem Flux Pro** — fotorrealístico, arquitetural
+- **Prompt de imagem Recraft** — mesmo conceito, adaptado pro estilo editorial + paleta Seazone
+- **Prompt de vídeo Kling** — com direção de câmera e movimento
+- **Prompt de vídeo Minimax** — versão simplificada do movimento
+- **Prompt de vídeo Luma** — foco em cinematografia e fluidez
 - **Adaptações por formato** — ajustes de composição pra 9:16, 4:5 e 1:1
 
 ### 4. Mapear imagens do banco
@@ -87,13 +91,21 @@ CENA 1:
     Imagem necessária: [descrição da imagem a buscar]
     Se não disponível: gerar via IA
 
-  Prompt de imagem (Flux Pro):
-    "[prompt completo em inglês, otimizado pra Flux, incluindo
-     aspect ratio, estilo, qualidade, negative prompt]"
+  Prompt de imagem — Flux Pro:
+    "[prompt fotorrealístico em inglês, aspect ratio, qualidade, negative prompt]"
 
-  Prompt de vídeo (Kling):
-    "[prompt de movimento em inglês, com duração, câmera,
-     direção de movimento]"
+  Prompt de imagem — Recraft V3:
+    "[prompt editorial em inglês, style: realistic_image,
+     colors: paleta Seazone (#011337, #F1605D, #FFFFFF)]"
+
+  Prompt de vídeo — Kling:
+    "[prompt com direção de câmera, duração, movimento detalhado]"
+
+  Prompt de vídeo — Minimax:
+    "[prompt simplificado de movimento]"
+
+  Prompt de vídeo — Luma:
+    "[prompt cinematográfico, aspect_ratio, foco em fluidez]"
 
   Adaptações por formato:
     9:16: [composição vertical — ponto focal no centro]
@@ -222,6 +234,14 @@ Tudo pronto para o Agente 05 executar.
 - Parâmetros: prompt, image_size, num_images
 - Formatos: portrait_16_9, portrait_4_5, square
 
+### Recraft V3 (imagem) via fal.ai
+- Endpoint text-to-image: `fal-ai/recraft/v3/text-to-image`
+- Endpoint image-to-image: `fal-ai/recraft/v3/image-to-image`
+- Parâmetros: prompt, image_size, style, colors
+- Formatos: square_hd, portrait_4_3, portrait_16_9, landscape_4_3, landscape_16_9
+- Styles: realistic_image, digital_illustration
+- Colors: aceita array de cores RGB pra guiar a paleta (usar cores Seazone)
+
 ### Kling (vídeo) via fal.ai
 - Endpoint: `fal-ai/kling-video/v2/master`
 - Parâmetros: prompt, duration, aspect_ratio, image_url (se image-to-video)
@@ -231,3 +251,10 @@ Tudo pronto para o Agente 05 executar.
 - Endpoint: `fal-ai/minimax-video`
 - Parâmetros: prompt, image_url (se image-to-video)
 - Modo: image-to-video preferido
+
+### Luma Dream Machine Ray 2 (vídeo) via fal.ai
+- Endpoint: `fal-ai/luma-dream-machine/ray-2/image-to-video`
+- Endpoint rápido: `fal-ai/luma-dream-machine/ray-2-flash/image-to-video`
+- Parâmetros: prompt, image_url, aspect_ratio, loop
+- Aspect ratios: 16:9, 9:16, 4:3, 3:4
+- Melhor pra: cenas cinematográficas, drone, paisagens fluidas
