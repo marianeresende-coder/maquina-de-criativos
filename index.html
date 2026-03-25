@@ -38,7 +38,81 @@
 <body class="bg-gray-50 min-h-screen">
 <div id="root"></div>
 <script type="text/babel">
-const { useState, useCallback } = React;
+const { useState, useCallback, useEffect, useRef } = React;
+
+// ============================================================
+// TIMER HOOK
+// ============================================================
+
+function useAgentTimers(currentAgent) {
+  const [timers, setTimers] = useState({});
+  const intervalsRef = useRef({});
+
+  useEffect(() => {
+    // When currentAgent changes, start timer for it and stop previous
+    if (currentAgent < 2 || currentAgent > 6) return;
+
+    const agentKey = currentAgent;
+
+    // Mark start time if not already started
+    setTimers(prev => {
+      if (prev[agentKey]?.start) return prev;
+      return { ...prev, [agentKey]: { start: Date.now(), elapsed: 0, done: false } };
+    });
+
+    // Start interval for current agent
+    if (intervalsRef.current[agentKey]) clearInterval(intervalsRef.current[agentKey]);
+    intervalsRef.current[agentKey] = setInterval(() => {
+      setTimers(prev => {
+        const t = prev[agentKey];
+        if (!t || t.done) return prev;
+        return { ...prev, [agentKey]: { ...t, elapsed: Date.now() - t.start } };
+      });
+    }, 100);
+
+    // Finalize previous agent
+    const prevAgent = agentKey - 1;
+    if (prevAgent >= 2 && intervalsRef.current[prevAgent]) {
+      clearInterval(intervalsRef.current[prevAgent]);
+      setTimers(prev => {
+        const t = prev[prevAgent];
+        if (!t) return prev;
+        return { ...prev, [prevAgent]: { ...t, elapsed: Date.now() - t.start, done: true } };
+      });
+    }
+
+    return () => {
+      if (intervalsRef.current[agentKey]) clearInterval(intervalsRef.current[agentKey]);
+    };
+  }, [currentAgent]);
+
+  // When pipeline finishes (currentAgent > 6), stop last timer
+  useEffect(() => {
+    if (currentAgent > 6) {
+      Object.keys(intervalsRef.current).forEach(k => clearInterval(intervalsRef.current[k]));
+      setTimers(prev => {
+        const updated = { ...prev };
+        Object.keys(updated).forEach(k => {
+          if (!updated[k].done) {
+            updated[k] = { ...updated[k], elapsed: Date.now() - updated[k].start, done: true };
+          }
+        });
+        return updated;
+      });
+    }
+  }, [currentAgent]);
+
+  return timers;
+}
+
+function formatTimer(ms) {
+  const totalSec = Math.floor(ms / 1000);
+  const min = Math.floor(totalSec / 60);
+  const sec = totalSec % 60;
+  const tenths = Math.floor((ms % 1000) / 100);
+  if (min > 0) return `${min}m ${sec.toString().padStart(2, '0')}s`;
+  return `${sec}.${tenths}s`;
+}
 
 // ============================================================
 // AGENT 01 — BRIEFING VALIDATOR (runs in browser)
@@ -440,6 +514,7 @@ function Step2_Validation({ data, url, onApproved, onReset }) {
 
 function Step3_Pipeline({ data, currentAgent }) {
   const projectName = data.projeto?.nome || 'Empreendimento';
+  const timers = useAgentTimers(currentAgent);
 
   const agents = [
     { n:'02', name:'Roteirista', desc:'Criando 5 roteiros cena por cena...', icon:'🎬' },
@@ -449,10 +524,19 @@ function Step3_Pipeline({ data, currentAgent }) {
     { n:'06', name:'Validador do Criativo', desc:'Validação final dos arquivos...', icon:'🏆' },
   ];
 
+  // Calculate total pipeline time
+  const totalTime = Object.values(timers).reduce((sum, t) => sum + (t.elapsed || 0), 0);
+  const allDone = currentAgent > 6;
+
   return (
     <div className="fade-in">
-      <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-4 mb-6">
+      <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-4 mb-6 flex items-center justify-between">
         <p className="text-sm text-emerald-700">✅ Briefing <strong>{projectName}</strong> validado. Pipeline em execução.</p>
+        {totalTime > 0 && (
+          <span className={`text-xs font-mono px-2 py-1 rounded-full ${allDone ? 'bg-emerald-200 text-emerald-800' : 'bg-yellow-100 text-yellow-800'}`}>
+            Total: {formatTimer(totalTime)}
+          </span>
+        )}
       </div>
 
       <div className="space-y-3">
@@ -461,6 +545,11 @@ function Step3_Pipeline({ data, currentAgent }) {
           let status = 'idle';
           if (agentIndex < currentAgent) status = 'success';
           else if (agentIndex === currentAgent) status = 'running';
+
+          const timer = timers[agentIndex];
+          const timerDisplay = timer ? formatTimer(timer.elapsed) : null;
+          const isWarning = timer && timer.elapsed > 5 * 60 * 1000; // > 5 min
+          const isCritical = timer && timer.elapsed > 10 * 60 * 1000; // > 10 min
 
           return (
             <div key={a.n} className={`bg-white rounded-xl border p-5 transition-all ${status === 'running' ? 'border-yellow-300 shadow-md' : status === 'success' ? 'border-emerald-200' : 'border-gray-200 opacity-60'}`}>
@@ -484,25 +573,37 @@ function Step3_Pipeline({ data, currentAgent }) {
                     <p className="text-sm text-emerald-600 mt-1">Concluído ✓</p>
                   )}
                 </div>
-                {status === 'success' && (
-                  <span className="text-xs bg-emerald-100 text-emerald-700 px-2 py-1 rounded-full">Aprovado</span>
-                )}
-                {status === 'running' && (
-                  <svg className="w-5 h-5 text-yellow-500 spinner flex-shrink-0" viewBox="0 0 24 24" fill="none">
-                    <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3" strokeDasharray="32" strokeLinecap="round"/>
-                  </svg>
-                )}
+                <div className="flex items-center gap-2 flex-shrink-0">
+                  {timerDisplay && (
+                    <span className={`text-xs font-mono px-2.5 py-1 rounded-full ${
+                      status === 'success'
+                        ? (isCritical ? 'bg-red-100 text-red-700' : isWarning ? 'bg-yellow-100 text-yellow-700' : 'bg-emerald-100 text-emerald-700')
+                        : (isCritical ? 'bg-red-100 text-red-700' : isWarning ? 'bg-yellow-100 text-yellow-700' : 'bg-gray-100 text-gray-600')
+                    }`}>
+                      {timerDisplay}
+                    </span>
+                  )}
+                  {status === 'success' && (
+                    <span className="text-xs bg-emerald-100 text-emerald-700 px-2 py-1 rounded-full">Aprovado</span>
+                  )}
+                  {status === 'running' && (
+                    <svg className="w-5 h-5 text-yellow-500 spinner" viewBox="0 0 24 24" fill="none">
+                      <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3" strokeDasharray="32" strokeLinecap="round"/>
+                    </svg>
+                  )}
+                </div>
               </div>
             </div>
           );
         })}
       </div>
 
-      {currentAgent > 6 && (
+      {allDone && (
         <div className="mt-6 bg-sea-dark rounded-xl p-6 text-white text-center fade-in">
           <div className="text-4xl mb-3">🎉</div>
           <h3 className="font-display font-bold text-xl mb-2">Pacote completo gerado!</h3>
-          <p className="text-white/60 text-sm mb-4">{projectName}</p>
+          <p className="text-white/60 text-sm mb-2">{projectName}</p>
+          <p className="text-sm font-mono text-white/80 mb-4">Tempo total: {formatTimer(totalTime)}</p>
           <div className="grid grid-cols-3 gap-4 max-w-md mx-auto">
             <div className="bg-white/10 rounded-lg p-3">
               <p className="text-lg font-bold">2</p>
