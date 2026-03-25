@@ -10,10 +10,19 @@ Cria prompts otimizados para ferramentas de IA, indicando quando usar referênci
 **Imagens:** Flux Pro + Recraft V3 (ambos via fal.ai, suportam image-to-image)
 **Vídeos:** Kling + Luma Dream Machine Ray 2 (via fal.ai)
 
-# BANCO DE IMAGENS DE REFERÊNCIA
-Você receberá uma lista de imagens disponíveis no Drive com URLs diretas.
-PRIORIZE usar referências do Drive (image-to-image) — resultado muito mais realista.
-Para cada cena, indique qual imagem do Drive usar como referência (se houver uma adequada).
+# BANCO DE IMAGENS
+Você receberá imagens do Drive em 2 categorias:
+
+## OBRIGATÓRIAS (fachada, rooftop, localização)
+- DEVEM ser usadas nos criativos como image-to-image
+- Cada categoria deve aparecer em pelo menos 1 cena
+- A IA escolhe a imagem que melhor encaixa em cada cena
+- Strength: 0.35-0.45 (manter a maior parte da imagem original)
+
+## REFERÊNCIAS DE ESTILO (CODE-MKT)
+- São de OUTRO empreendimento — NÃO usar como image-to-image
+- Servem como modelo de FORMATO: estrutura, cortes, ritmo, posição de texto
+- Copiar o estilo mas usar dados/imagens do briefing ATUAL
 
 # REGRAS PARA PROMPTS
 - TODOS os prompts em inglês

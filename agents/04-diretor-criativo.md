@@ -64,14 +64,19 @@ Para CADA cena de CADA roteiro, gera:
 ### 4. Mapear imagens do banco
 Consultar as pastas públicas do Drive listadas em `BANCO_DE_IMAGENS.md`.
 
-**Novo Campeche SPOT II:**
-- Imagens gerais: https://drive.google.com/drive/folders/1rew277kYACg3rnXohORpI3zbWXFesfAl
-- Imagens de drone: https://drive.google.com/drive/folders/1aCBvn144SF788d4azGANVe0VMGXRY1cR
+**Novo Campeche SPOT II — Imagens OBRIGATÓRIAS:**
+- Fachada: https://drive.google.com/drive/folders/104mOv7hcjDRgkoc9A_I7hOO9x1VgwnpJ
+- Rooftop: https://drive.google.com/drive/folders/1ZyLJny6IkXWdo2TQKXGwMGmrUWYBVpdZ
+- Localização: https://drive.google.com/drive/folders/1khMDmsNaks6S3tKmn308D3-d7oL1MSRd
+
+**Referências de estilo (outro empreendimento — copiar formato, NÃO dados):**
+- CODE-MKT: https://drive.google.com/drive/folders/15EKv4-VAy6CSfyA8vpKuvu_TUwq27ex4
 
 Para cada cena, indica:
-- **Qual pasta do Drive** tem a imagem de referência (gerais ou drone)
-- **Tipo de imagem** necessária (fachada, rooftop, aérea, praia, etc.)
-- **Se não tiver no Drive** → sinalizar que a IA gera do zero via prompt
+- **Qual pasta do Drive** tem a imagem obrigatória (fachada, rooftop ou localização)
+- A IA ESCOLHE a imagem que melhor encaixa na cena
+- **OBRIGATÓRIO** usar pelo menos 1 imagem de cada categoria no total
+- **Se não tiver imagem adequada** → gerar via IA, mas priorizar banco
 
 ---
 
