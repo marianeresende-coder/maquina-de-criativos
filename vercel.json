@@ -4,6 +4,15 @@
   "installCommand": "npm install",
   "outputDirectory": ".",
   "functions": {
+    "api/generate-video.js": {
+      "maxDuration": 300
+    },
+    "api/generate-image.js": {
+      "maxDuration": 120
+    },
+    "api/generate-direction.js": {
+      "maxDuration": 120
+    },
     "api/*.js": {
       "maxDuration": 60
     }

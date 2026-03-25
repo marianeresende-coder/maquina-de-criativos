@@ -703,38 +703,47 @@ function Step3_Pipeline({ data, onReset }) {
     const allMedia = [];
     const videoPieces = [3, 4]; // peças que precisam de vídeo
 
-    // --- FASE 1: GERAR IMAGENS ---
-    let imgTotal = 0;
-    for (const p of pieces) imgTotal += (p.scenes || []).length * 2;
-    let imgDone = 0;
-
+    // --- FASE 1: GERAR IMAGENS (3 em paralelo) ---
+    const imageJobs = [];
     for (const piece of pieces) {
       for (const scene of (piece.scenes || [])) {
         for (const eng of ['flux', 'recraft']) {
           const prompt = eng === 'flux' ? scene.imagePrompt : (scene.imagePromptRecraft || scene.imagePrompt);
-          if (!prompt) { imgDone++; continue; }
-
-          imgDone++;
-          setGenProgress(`Imagem ${imgDone}/${imgTotal} (${eng === 'flux' ? 'Flux Pro' : 'Recraft'}) — Peça ${piece.pieceNumber}, Cena ${scene.sceneNumber}`);
-
-          try {
-            const res = await fetch('/api/generate-image', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ prompt, engine: eng, format: scene.format || '9:16', referenceImageUrl: scene.referenceImageUrl || null }),
-            });
-            const result = await res.json();
-            if (result.url) {
-              allMedia.push({
-                piece: piece.pieceNumber, scene: scene.sceneNumber,
-                engine: eng, type: 'image', url: result.url, prompt,
-              });
-              setGeneratedImages([...allMedia]);
-            }
-          } catch (err) {
-            allMedia.push({ piece: piece.pieceNumber, scene: scene.sceneNumber, engine: eng, type: 'image', error: err.message });
-          }
+          if (!prompt) continue;
+          imageJobs.push({ piece: piece.pieceNumber, scene: scene.sceneNumber, eng, prompt, ref: scene.referenceImageUrl, refStrength: scene.referenceStrength, neg: scene.negativePrompt, format: scene.format || '9:16' });
         }
+      }
+    }
+
+    const BATCH_SIZE = 3;
+    let imgDone = 0;
+
+    for (let i = 0; i < imageJobs.length; i += BATCH_SIZE) {
+      const batch = imageJobs.slice(i, i + BATCH_SIZE);
+      setGenProgress(`Imagens ${imgDone + 1}-${Math.min(imgDone + batch.length, imageJobs.length)}/${imageJobs.length}`);
+
+      const results = await Promise.allSettled(batch.map(async (job) => {
+        const res = await fetch('/api/generate-image', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ prompt: job.prompt, engine: job.eng, format: job.format, referenceImageUrl: job.ref || null, referenceStrength: job.refStrength, negativePrompt: job.neg }),
+        });
+        const result = await res.json();
+        return { ...job, result };
+      }));
+
+      for (const r of results) {
+        imgDone++;
+        if (r.status === 'fulfilled' && r.value.result.url) {
+          allMedia.push({
+            piece: r.value.piece, scene: r.value.scene,
+            engine: r.value.eng, type: 'image', url: r.value.result.url, prompt: r.value.prompt,
+          });
+        } else {
+          const errMsg = r.status === 'rejected' ? r.reason?.message : r.value.result.error;
+          allMedia.push({ piece: r.value?.piece, scene: r.value?.scene, engine: r.value?.eng, type: 'image', error: errMsg });
+        }
+        setGeneratedImages([...allMedia]);
       }
     }
 

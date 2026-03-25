@@ -81,7 +81,7 @@ module.exports = async function handler(req, res) {
       const jsonMatch = text.match(/\{[\s\S]*\}/);
       result = JSON.parse(jsonMatch ? jsonMatch[0] : text);
     } catch {
-      result = { approved: true, summary: text };
+      result = { approved: false, summary: "Validação inconclusiva. Revisão manual necessária.", issues: ["Resposta do validador não foi JSON válido"] };
     }
 
     return res.status(200).json(result);

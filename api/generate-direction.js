@@ -17,12 +17,20 @@ Para cada cena, indique qual imagem do Drive usar como referência (se houver um
 
 # REGRAS PARA PROMPTS
 - TODOS os prompts em inglês
-- Incluir: "8k photorealistic", "cinematic lighting", "professional real estate marketing"
-- Incluir: "modern Brazilian coastal architecture", "warm golden hour", "tropical setting"
-- Negative prompts: "dark, moody, frame, border, blur, vignette, night, low quality, deformed, unrealistic, cartoon, illustration"
-- Estilo Seazone: tons quentes, golden hour, fotorrealístico, clean, premium, instagramável
-- Se tem referência do Drive: descrever como a IA deve adaptar a referência
-- Se NÃO tem referência: descrever o visual completo do zero
+- Estilo: fotorrealístico, premium, clean, instagramável
+
+## Composição por tipo de cena:
+- **Fachada**: "low angle looking up, wide-angle 24mm lens, building fills 60% of frame, clear blue sky, warm afternoon light from the side, modern coastal Brazilian architecture"
+- **Rooftop/piscina**: "eye level, infinity pool in foreground reflecting sky, ocean horizon in background, golden hour warm light, lounge chairs, tropical plants, premium resort feel"
+- **Drone/aérea**: "aerial drone shot at 50m altitude, 45-degree angle, turquoise ocean, white sand beach, urban grid visible, bright sunny day, sharp details"
+- **Interior/studio**: "wide-angle interior, natural light from window, modern minimalist furniture, warm wood tones, clean lines, bright and airy"
+- **Região/lifestyle**: "street level, tropical vegetation, modern neighborhood, warm golden hour, people-scale perspective, inviting atmosphere"
+
+## Instruções gerais:
+- Se tem referência do Drive: prompt deve descrever COMO adaptar/melhorar a referência. Incluir "referenceStrength" no JSON (0.35 para renders bons, 0.55 para fotos brutas)
+- Se NÃO tem referência: descrever o visual completo com todos os detalhes acima
+- Incluir campo "negativePrompt" específico por cena quando necessário
+- NUNCA usar: "dark", "moody", "night", "dramatic lighting", "HDR extreme"
 
 # FORMATO DE RESPOSTA
 {
@@ -36,9 +44,11 @@ Para cada cena, indique qual imagem do Drive usar como referência (se houver um
           "description": "descrição da cena em português",
           "referenceImageUrl": "URL da imagem do Drive (ou null se gerar do zero)",
           "referenceImageName": "nome do arquivo de referência (ou null)",
-          "imagePrompt": "prompt em inglês para Flux Pro",
+          "referenceStrength": 0.45,
+          "imagePrompt": "prompt em inglês para Flux Pro com composição específica",
           "imagePromptRecraft": "prompt em inglês adaptado para Recraft V3",
-          "videoPrompt": "prompt de vídeo em inglês (ou null se não precisa)",
+          "negativePrompt": "elementos indesejados específicos desta cena",
+          "videoPrompt": "prompt de vídeo em inglês com direção de câmera (ou null)",
           "format": "9:16"
         }
       ]
@@ -83,7 +93,7 @@ module.exports = async function handler(req, res) {
       },
       body: JSON.stringify({
         model: "anthropic/claude-sonnet-4",
-        max_tokens: 4000,
+        max_tokens: 8000,
         messages: [
           { role: "system", content: SYSTEM_PROMPT },
           { role: "user", content: `# BRIEFING\n\n${briefingText}\n\n# ROTEIROS VALIDADOS\n\n${roteirosText}${driveImages || ''}\n\nGere os prompts de IA para todas as peças. PRIORIZE usar referências do Drive quando disponíveis.` },

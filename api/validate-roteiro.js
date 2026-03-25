@@ -77,7 +77,7 @@ module.exports = async function handler(req, res) {
       const jsonMatch = text.match(/\{[\s\S]*\}/);
       result = JSON.parse(jsonMatch ? jsonMatch[0] : text);
     } catch {
-      result = { approved: true, summary: text, checks: {} };
+      result = { approved: false, summary: "Validação inconclusiva. Revisão necessária.", checks: {} };
     }
 
     return res.status(200).json(result);
