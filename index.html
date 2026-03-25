@@ -170,7 +170,11 @@ function validateBriefing(data) {
       }
 
       if (!passed) sectionPassed = false;
-      fieldResults.push({ path: field.path, label: field.label, passed, error, value: passed ? value : null });
+      // Always pass the value (even if failed) for display purposes
+      const displayValue = field.isArray ? (Array.isArray(value) ? `${value.length} item(ns)` : null) :
+                           field.isObject ? (value ? `${Object.keys(value).length} campo(s)` : null) :
+                           value;
+      fieldResults.push({ path: field.path, label: field.label, passed, error, value: displayValue });
     }
 
     if (!sectionPassed) allPassed = false;
@@ -365,26 +369,43 @@ function Step2_Validation({ data, url, onApproved, onReset }) {
         )}
       </div>
 
-      {/* Section by section */}
+      {/* Section by section — with values */}
       <div className="space-y-3 mb-6">
         {validation.results.map(section => (
-          <div key={section.key} className={`bg-white rounded-xl border p-4 ${!section.passed ? 'border-red-200' : 'border-gray-200'}`}>
-            <div className="flex items-center gap-2 mb-2">
-              <span className={`text-sm ${section.passed ? 'text-emerald-500' : 'text-red-500'}`}>
+          <div key={section.key} className={`bg-white rounded-xl border overflow-hidden transition-all ${section.passed ? 'border-emerald-200' : 'border-red-200'}`}>
+            <div className={`flex items-center gap-3 px-4 py-3 ${section.passed ? 'bg-emerald-50' : 'bg-red-50'}`}>
+              <div className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold ${section.passed ? 'bg-emerald-500 text-white' : 'bg-red-500 text-white'}`}>
                 {section.passed ? '✓' : '✕'}
-              </span>
-              <span className="font-medium text-sm">{section.label}</span>
+              </div>
+              <span className="font-display font-bold text-sm">{section.label}</span>
               {!section.passed && section.error && (
-                <span className="text-xs bg-red-100 text-red-600 px-2 py-0.5 rounded-full ml-auto">{section.error}</span>
+                <span className="text-xs bg-red-200 text-red-700 px-2 py-0.5 rounded-full ml-auto">{section.error}</span>
+              )}
+              {section.passed && (
+                <span className="text-xs text-emerald-600 ml-auto">Completo</span>
               )}
             </div>
             {section.fields.length > 0 && (
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5 mt-2">
+              <div className="divide-y divide-gray-100">
                 {section.fields.map(f => (
-                  <div key={f.path} className={`flex items-center gap-2 text-xs px-2 py-1.5 rounded ${f.passed ? 'bg-gray-50 text-gray-600' : 'bg-red-50 text-red-700'}`}>
-                    <span>{f.passed ? '✓' : '✕'}</span>
-                    <span>{f.label}</span>
-                    {!f.passed && f.error && <span className="ml-auto text-[10px] text-red-500">({f.error})</span>}
+                  <div key={f.path} className={`flex items-center justify-between px-4 py-2.5 ${f.passed ? '' : 'bg-red-50/50'}`}>
+                    <div className="flex items-center gap-2">
+                      <span className={`text-sm ${f.passed ? 'text-emerald-500' : 'text-red-500'}`}>
+                        {f.passed ? '✓' : '✕'}
+                      </span>
+                      <span className="text-sm text-gray-700">{f.label}</span>
+                    </div>
+                    <div className="text-right">
+                      {f.passed && f.value ? (
+                        <span className="text-sm font-medium text-gray-900 bg-emerald-50 px-2 py-0.5 rounded">
+                          {typeof f.value === 'string' && f.value.length > 50 ? f.value.substring(0, 50) + '...' : f.value}
+                        </span>
+                      ) : !f.passed ? (
+                        <span className="text-xs font-medium text-red-600 bg-red-100 px-2 py-0.5 rounded">
+                          {f.error || 'Ausente'}
+                        </span>
+                      ) : null}
+                    </div>
                   </div>
                 ))}
               </div>
