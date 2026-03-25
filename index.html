@@ -675,24 +675,22 @@ function Step3_Pipeline({ data, onReset }) {
   const runCreatives = async (dir) => {
     setGenStatus('running');
     const pieces = dir.pieces || [];
-    const images = [];
-    let total = 0;
-    let done = 0;
+    const allMedia = [];
+    const videoPieces = [3, 4]; // peças que precisam de vídeo
 
-    // Count total images to generate
-    for (const p of pieces) {
-      total += (p.scenes || []).length * 2; // Flux + Recraft per scene
-    }
+    // --- FASE 1: GERAR IMAGENS ---
+    let imgTotal = 0;
+    for (const p of pieces) imgTotal += (p.scenes || []).length * 2;
+    let imgDone = 0;
 
     for (const piece of pieces) {
       for (const scene of (piece.scenes || [])) {
-        // Generate with Flux Pro
         for (const eng of ['flux', 'recraft']) {
           const prompt = eng === 'flux' ? scene.imagePrompt : (scene.imagePromptRecraft || scene.imagePrompt);
-          if (!prompt) { done++; continue; }
+          if (!prompt) { imgDone++; continue; }
 
-          done++;
-          setGenProgress(`Gerando imagem ${done}/${total} (${eng === 'flux' ? 'Flux Pro' : 'Recraft'}) — Peça ${piece.pieceNumber}, Cena ${scene.sceneNumber}`);
+          imgDone++;
+          setGenProgress(`Imagem ${imgDone}/${imgTotal} (${eng === 'flux' ? 'Flux Pro' : 'Recraft'}) — Peça ${piece.pieceNumber}, Cena ${scene.sceneNumber}`);
 
           try {
             const res = await fetch('/api/generate-image', {
@@ -702,26 +700,73 @@ function Step3_Pipeline({ data, onReset }) {
             });
             const result = await res.json();
             if (result.url) {
-              images.push({
-                piece: piece.pieceNumber,
-                scene: scene.sceneNumber,
-                engine: eng,
-                url: result.url,
-                prompt,
+              allMedia.push({
+                piece: piece.pieceNumber, scene: scene.sceneNumber,
+                engine: eng, type: 'image', url: result.url, prompt,
               });
-              setGeneratedImages([...images]);
+              setGeneratedImages([...allMedia]);
             }
           } catch (err) {
-            // Continue on error
-            images.push({ piece: piece.pieceNumber, scene: scene.sceneNumber, engine: eng, error: err.message });
+            allMedia.push({ piece: piece.pieceNumber, scene: scene.sceneNumber, engine: eng, type: 'image', error: err.message });
           }
+        }
+      }
+    }
+
+    // --- FASE 2: GERAR VÍDEOS (peças 3 e 4) ---
+    // Pegar o frame-chave (imagem Flux) de cada cena pra animar
+    const videoEngines = ['kling', 'luma'];
+    const videoScenes = [];
+    for (const piece of pieces) {
+      if (!videoPieces.includes(piece.pieceNumber)) continue;
+      for (const scene of (piece.scenes || [])) {
+        const frameImg = allMedia.find(m =>
+          m.piece === piece.pieceNumber && m.scene === scene.sceneNumber &&
+          m.engine === 'flux' && m.type === 'image' && m.url
+        );
+        if (frameImg && scene.videoPrompt) {
+          videoScenes.push({ piece: piece.pieceNumber, scene, frameUrl: frameImg.url });
+        }
+      }
+    }
+
+    const vidTotal = videoScenes.length * videoEngines.length;
+    let vidDone = 0;
+
+    for (const vs of videoScenes) {
+      for (const eng of videoEngines) {
+        vidDone++;
+        const engName = eng === 'kling' ? 'Kling' : eng === 'luma' ? 'Luma Ray 2' : 'Minimax';
+        setGenProgress(`Vídeo ${vidDone}/${vidTotal} (${engName}) — Peça ${vs.piece}, Cena ${vs.scene.sceneNumber}`);
+
+        try {
+          const res = await fetch('/api/generate-video', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              prompt: vs.scene.videoPrompt,
+              engine: eng,
+              imageUrl: vs.frameUrl,
+              format: vs.scene.format || '9:16',
+            }),
+          });
+          const result = await res.json();
+          if (result.url) {
+            allMedia.push({
+              piece: vs.piece, scene: vs.scene.sceneNumber,
+              engine: eng, type: 'video', url: result.url, prompt: vs.scene.videoPrompt,
+            });
+            setGeneratedImages([...allMedia]);
+          }
+        } catch (err) {
+          allMedia.push({ piece: vs.piece, scene: vs.scene.sceneNumber, engine: eng, type: 'video', error: err.message });
         }
       }
     }
 
     setGenStatus('success');
     setPhase('validation');
-    runValidation(images, dir);
+    runValidation(allMedia, dir);
   };
 
   // --- Agent 06: Validate ---
@@ -792,18 +837,39 @@ function Step3_Pipeline({ data, onReset }) {
             description={genProgress || 'Gerando imagens...'} timer={genTimer}>
             {generatedImages.length > 0 && (
               <div className="px-5 py-3">
-                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
-                  {generatedImages.filter(i => i.url).map((img, idx) => (
-                    <div key={idx} className="relative group">
+                {/* Images */}
+                <p className="text-xs font-bold text-gray-500 mb-2 uppercase">Imagens</p>
+                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3 mb-4">
+                  {generatedImages.filter(i => i.url && i.type === 'image').map((img, idx) => (
+                    <a key={idx} href={img.url} target="_blank" rel="noopener" className="relative group">
                       <img src={img.url} alt={`P${img.piece} C${img.scene}`}
-                        className="w-full aspect-[9/16] object-cover rounded-lg border border-gray-200" />
+                        className="w-full aspect-[9/16] object-cover rounded-lg border border-gray-200 hover:border-sea-coral transition-colors" />
                       <div className="absolute bottom-0 left-0 right-0 bg-black/60 text-white text-[10px] px-2 py-1 rounded-b-lg">
                         P{img.piece} C{img.scene} — {img.engine === 'flux' ? 'Flux Pro' : 'Recraft'}
                       </div>
-                    </div>
+                    </a>
                   ))}
                 </div>
-                <p className="text-xs text-gray-500 mt-2">{generatedImages.filter(i => i.url).length} imagens geradas</p>
+                {/* Videos */}
+                {generatedImages.some(i => i.url && i.type === 'video') && (
+                  <>
+                    <p className="text-xs font-bold text-gray-500 mb-2 uppercase">Vídeos</p>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      {generatedImages.filter(i => i.url && i.type === 'video').map((vid, idx) => (
+                        <div key={idx} className="relative">
+                          <video src={vid.url} controls className="w-full rounded-lg border border-gray-200" />
+                          <div className="mt-1 text-[10px] text-gray-500">
+                            P{vid.piece} C{vid.scene} — {vid.engine === 'kling' ? 'Kling' : vid.engine === 'luma' ? 'Luma Ray 2' : 'Minimax'}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </>
+                )}
+                <p className="text-xs text-gray-500 mt-2">
+                  {generatedImages.filter(i => i.url && i.type === 'image').length} imagens +
+                  {' '}{generatedImages.filter(i => i.url && i.type === 'video').length} vídeos gerados
+                </p>
               </div>
             )}
           </AgentCard>
@@ -834,17 +900,21 @@ function Step3_Pipeline({ data, onReset }) {
           <div className="text-4xl mb-3">🎉</div>
           <h3 className="font-display font-bold text-xl mb-2">Pacote de criativos completo!</h3>
           <p className="text-white/60 text-sm mb-2">{projectName}</p>
-          <div className="grid grid-cols-3 gap-4 max-w-md mx-auto mb-4">
+          <div className="grid grid-cols-4 gap-3 max-w-lg mx-auto mb-4">
             <div className="bg-white/10 rounded-lg p-3">
               <p className="text-lg font-bold">5</p>
               <p className="text-[10px] text-white/50">Roteiros</p>
             </div>
             <div className="bg-white/10 rounded-lg p-3">
-              <p className="text-lg font-bold">{generatedImages.filter(i => i.url).length}</p>
-              <p className="text-[10px] text-white/50">Imagens geradas</p>
+              <p className="text-lg font-bold">{generatedImages.filter(i => i.url && i.type === 'image').length}</p>
+              <p className="text-[10px] text-white/50">Imagens</p>
             </div>
             <div className="bg-white/10 rounded-lg p-3">
-              <p className="text-lg font-bold">2</p>
+              <p className="text-lg font-bold">{generatedImages.filter(i => i.url && i.type === 'video').length}</p>
+              <p className="text-[10px] text-white/50">Vídeos</p>
+            </div>
+            <div className="bg-white/10 rounded-lg p-3">
+              <p className="text-lg font-bold">5</p>
               <p className="text-[10px] text-white/50">IAs usadas</p>
             </div>
           </div>
