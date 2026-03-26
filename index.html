@@ -815,20 +815,20 @@ function Step3_Pipeline({ data, onReset }) {
           const complemento = campo(7, 'com aluguel por temporada');
 
           // Prompt FIXO — descreve o layout exato da referencia, so troca os textos
-          const prompt = `You are a graphic designer. Generate a real estate marketing poster in 9:16 vertical format (1080x1350px).
+          const prompt = `You are a graphic designer. Generate a real estate marketing poster in 4:5 format (1080x1350px).
 
-CRITICAL: You MUST replicate the EXACT layout of the second image (reference). Copy the same fonts, colors, spacing, element sizes and positions. The ONLY things that change are the background photo (use the first image) and the text content (listed below).
+CRITICAL: You MUST replicate the EXACT layout of the second image (reference). Copy the same fonts, colors, spacing, element sizes and EXACT POSITIONS. The ONLY things that change are the background photo (use the first image) and the text content (listed below).
 
-EXACT LAYOUT (top to bottom):
-1. BACKGROUND: Use the first image as full-bleed background. Apply a dark navy gradient overlay on the bottom 50% (fading from transparent to #011337).
-2. TOP CENTER: White "seazone" logo with the orange pin icon replacing the "a".
-3. BELOW LOGO: Red/coral badge with white text "${nomeSpot}" in bold caps — same style as "NATAL SPOT" in reference.
-4. RIGHT SIDE (mid-top): White rounded card with text "${badgeDistancia}" and a small red map pin icon. Same style as the reference card.
-5. LEFT SIDE (middle): Small coral map pin icon + "${pinCidade}" in white text.
-6. LEFT SIDE (below pin): Coral/red rectangle badge with white bold text "LANÇAMENTO" — exactly like reference.
-7. RIGHT OF BADGE: White text "${headline}" — key words in BOLD white, rest in regular weight. Same font size as reference.
-8. BOTTOM SECTION - LEFT: White text "${labelDado}" — key words in BOLD. Same size as reference.
-9. BOTTOM SECTION - RIGHT: Dark navy rounded rectangle card containing "${dadoPrincipal}" — the percentage number must be VERY LARGE (biggest text on the poster), white bold. Same card style as reference.
+EXACT LAYOUT (top to bottom) — every element MUST be in the SAME POSITION as the reference:
+1. BACKGROUND: Use the first image as full-bleed background (1080x1350). Apply a dark navy gradient overlay on the bottom 50% (fading from transparent to #011337).
+2. TOP CENTER: White "seazone" logo with the orange pin icon replacing the "a". SAME position as reference.
+3. BELOW LOGO: Red/coral location pin badge with white text "${nomeSpot}" in bold caps. THIS IS A LOCATION PIN — it marks where the property is on the image. It MUST stay in the EXACT SAME POSITION as the reference (do NOT move it). Same style as "NATAL SPOT" in reference.
+4. RIGHT SIDE (mid-top): White rounded card with text "${badgeDistancia}" and a small red map pin icon. SAME position as reference.
+5. LEFT SIDE (middle): Small coral map pin icon + "${pinCidade}" in white text. SAME position as reference.
+6. LEFT SIDE (below pin): Coral/red rectangle badge with white bold text "LANÇAMENTO" — SAME position as reference.
+7. RIGHT OF BADGE: White text "${headline}" — key words in BOLD white, rest in regular weight. SAME position and font size as reference.
+8. BOTTOM SECTION - LEFT: White text "${labelDado}" — key words in BOLD. SAME position as reference.
+9. BOTTOM SECTION - RIGHT: Dark navy rounded rectangle card containing "${dadoPrincipal}" — the percentage number must be VERY LARGE (biggest text on the poster), white bold. SAME card style and position as reference.
 10. BELOW CARD: White text "${complemento}" — smaller, centered under the card.
 11. VERY BOTTOM: Tiny light gray disclaimer text (legal fine print, barely readable).
 
@@ -838,9 +838,11 @@ COLOR PALETTE (exact):
 - White: #FFFFFF (text, logo)
 
 ABSOLUTE RULES:
+- Output size MUST be exactly 1080x1350 pixels (4:5 feed format)
 - Copy the reference layout EXACTLY — same positions, same sizes, same fonts, same spacing
+- The orange/coral pin with "${nomeSpot}" (item 3) is a LOCATION MARKER — do NOT move it from its reference position
 - Do NOT add any extra text, bullets, icons, or elements that are not in the reference
-- Do NOT rearrange elements — follow the exact top-to-bottom flow
+- Do NOT rearrange or reposition ANY element — every element stays where it is in the reference
 - The poster must have EXACTLY 10 text elements as described above, NO MORE
 - The big number in the navy card (item 9) must be the largest text on the entire poster
 - Background photo should show through clearly in the top half
