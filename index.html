@@ -755,6 +755,18 @@ function Step3_Pipeline({ data, onReset }) {
     const pieces = dir.pieces || [];
     const allMedia = [];
 
+    // TRAVA DE CRÉDITO: máximo de chamadas pagas por execução
+    const MAX_API_CALLS = 10; // estático(1) + narrado(3 kling + 1 elevenlabs) + apresentadora(1 veo3 + 2 kling) = 8
+    let apiCallCount = 0;
+    const canCallAPI = () => {
+      if (apiCallCount >= MAX_API_CALLS) {
+        setGenProgress(`⛔ LIMITE DE ${MAX_API_CALLS} CHAMADAS ATINGIDO. Parando pra economizar créditos.`);
+        return false;
+      }
+      apiCallCount++;
+      return true;
+    };
+
     for (const piece of pieces) {
       const pn = piece.pieceNumber;
       const pType = piece.type || '';
@@ -774,6 +786,7 @@ function Step3_Pipeline({ data, onReset }) {
 
         const staticPrompt = `Professional real estate marketing static ad, 9:16 vertical format, EXACT SAME LAYOUT as the reference image: dark blue badge at top with "Lançamento" label, main headline with financial data in center, dark blue data card with bullet points showing investment metrics, coral location pin badge, coral CTA button at bottom. Background: beautiful Brazilian coastal location photo. Clean premium Seazone brand style. Colors: navy #011337, coral #F1605D, white #FFFFFF. Text content to include: "${headline}". Data points: "${dataOverlay}". Location: "${subtitle}". CTA: "${cta}". Modern, clean, editorial real estate design. 8k quality.`;
 
+        if (!canCallAPI()) { setGeneratedImages([...allMedia]); continue; }
         try {
           const res = await fetch('/api/generate-image', {
             method: 'POST',
@@ -840,6 +853,7 @@ function Step3_Pipeline({ data, onReset }) {
         // Gerar vídeos animados das cenas
         for (let i = 0; i < scenesToUse.length; i++) {
           const scene = scenesToUse[i];
+          if (!canCallAPI()) break;
           setGenProgress(`Peça 2 — Narrado: animando ${scene.name} (${i + 1}/${scenesToUse.length})...`);
           try {
             const res = await fetch('/api/generate-video', {
@@ -870,7 +884,7 @@ function Step3_Pipeline({ data, onReset }) {
         // Gerar narração (ElevenLabs) — pegar texto do roteiro
         const dirNarration = (piece.scenes || []).map(s => s.narrationText || s.lettering || '').filter(Boolean).join(' ');
         const narrationText = dirNarration || (roteiroTexts[2] || '').replace(/[━─═]/g, '').replace(/CENA \d+:|Visual:|Movimento:|Lettering:|Narração:|VÍDEO NARRADO.*/g, ' ').trim().substring(0, 500);
-        if (narrationText) {
+        if (narrationText && canCallAPI()) {
           setGenProgress('Peça 2 — Narrado: gerando narração (voz Monica)...');
           try {
             const res = await fetch('/api/generate-audio', {
@@ -930,6 +944,7 @@ function Step3_Pipeline({ data, onReset }) {
         ];
 
         for (let i = 0; i < APRESENTADORA_SCENES.length; i++) {
+          if (!canCallAPI()) break;
           const scene = APRESENTADORA_SCENES[i];
           setGenProgress(`Peça 3 — Apresentadora: ${scene.name} (${i + 1}/${APRESENTADORA_SCENES.length})...`);
           try {
@@ -966,6 +981,7 @@ function Step3_Pipeline({ data, onReset }) {
       }
     }
 
+    setGenProgress(`✅ Concluído — ${apiCallCount} chamadas de API usadas (limite: ${MAX_API_CALLS})`);
     setGenStatus('success');
     setPhase('validation');
     runValidation(allMedia, dir);
