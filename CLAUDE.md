@@ -1,22 +1,54 @@
 # MÁQUINA DE CRIATIVOS — SEAZONE
 
+---
+## ⛔ REGRAS INVIOLÁVEIS — LER ANTES DE QUALQUER COISA
+---
+
+### REGRA 1: SÃO 3 ENTREGÁVEIS. SÓ 3. NUNCA MAIS.
+1. **Peça Estática** — 1 imagem do Drive + dados do briefing como texto
+2. **Vídeo Narrado (15s)** — imagens do Drive animadas + narração (voz Monica)
+3. **Vídeo Apresentadora (30s)** — Monica gerada por Veo 3 + cenas animadas
+
+### REGRA 2: NÃO GERAR IMAGENS NOVAS
+- **NUNCA chamar generate-image.js**
+- **NUNCA chamar Flux Pro ou Recraft**
+- As imagens REAIS já existem no Google Drive (URLs no agente 05)
+- Para vídeos: animar as imagens do Drive DIRETAMENTE via Kling
+- Para Monica: usar Veo 3 (text-to-video direto, sem gerar imagem)
+- Para estático: usar foto do Drive COMO ESTÁ
+
+### REGRA 3: FLUXO SEQUENCIAL COM APROVAÇÃO
+```
+Roteiro aprovado → Estático (aprovar) → Narrado (aprovar) → Apresentadora (aprovar) → ✅
+```
+- 1 peça por vez. Esperar aprovação antes da próxima.
+- Se reprovado, refazer SÓ o que foi apontado.
+
+### REGRA 4: MÁXIMO DE CHAMADAS DE API
+- Estático: **0 chamadas** (usa foto do Drive direto)
+- Narrado: **~4 chamadas** (3 Kling + 1 ElevenLabs)
+- Apresentadora: **~2 chamadas** (Veo 3)
+- **TOTAL MÁXIMO: ~7 chamadas. Se passar de 12, PARE.**
+
+### REGRA 5: PEÇA ESTÁTICA = REFERÊNCIA
+- A peça estática de referência está em `15EKv4-VAy6CSfyA8vpKuvu_TUwq27ex4` (Estático.png)
+- SEGUIR EXATAMENTE a hierarquia de mensagens dessa referência
+- 1 imagem de fundo (localização do Drive) + dados do briefing como overlay
+- NÃO gerar vídeo para o estático. É UMA IMAGEM.
+
+---
+
 ## Sobre este projeto
-Sistema autônomo de geração de criativos de marketing para empreendimentos Seazone.
-O Claude Code atua como orquestrador central, coordenando múltiplos agentes especializados
-que transformam um briefing em peças criativas prontas para uso.
+Sistema de geração de criativos de marketing para empreendimentos Seazone.
+Transforma um briefing em 3 peças criativas prontas para produção.
 
-## Como funciona
-1. Recebe um briefing de empreendimento (dados financeiros, localização, público-alvo, etc.)
-2. Agentes especializados processam o briefing de forma autônoma
-3. Gera roteiros de vídeo, prompts de imagem, copies e storyboards
-4. Output: criativos prontos para produção e publicação
-
-## Estrutura de Agentes
-- **Estrategista**: Analisa briefing → define abordagem criativa e mensagens-chave
-- **Roteirista**: Cria roteiros de vídeo nas estruturas definidas com variações
-- **Diretor Visual**: Gera prompts otimizados para ferramentas de imagem/vídeo IA
-- **Copywriter**: Cria textos, headlines, CTAs para cada peça
-- **Revisor**: Valida aderência ao contexto Seazone (do's/don'ts, tom, identidade)
+## Agentes
+1. **Validador de Briefing** — valida o briefing recebido
+2. **Roteirista** — cria 3 roteiros (estático + narrado 15s + apresentadora 30s)
+3. **Validador de Roteiro** — valida os 3 roteiros
+4. **Diretor Criativo** — gera prompt de 1 peça por vez (sequencial)
+5. **Executor Criativo** — executa 1 peça por vez (sequencial, com aprovação)
+6. **Validador do Criativo** — apresenta ao usuário para aprovação
 
 ## Regras de execução
 - Sempre respeitar os DO's e DON'Ts do briefing

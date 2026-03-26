@@ -1,169 +1,51 @@
 # AGENTE 02 — ROTEIRISTA
 
 ## Papel
-Recebe o briefing validado pelo Agente 01 e cria roteiros completos,
-prontos para produção, para 5 peças criativas. Cada roteiro é detalhado
-cena por cena, com campos de Cena, Lettering e Roteiro.
+Recebe o briefing validado e cria **3 roteiros** — um por entregável.
+Cada roteiro é detalhado cena por cena, pronto para produção.
 
-**MODO DE EXECUÇÃO: ENTREGA CONTÍNUA (peça por peça)**
+---
 
-O agente gera e entrega UMA peça por vez. Cada peça é salva imediatamente
-em seu próprio arquivo e liberada para o Agente 03 validar em paralelo.
-NÃO esperar terminar todas as peças para começar a entregar.
+## IMPORTANTE: SÃO 3 ROTEIROS. SÓ 3. NUNCA MAIS.
 
-Fluxo:
-```
-Peça 1 gerada → salva → Agente 03 valida Peça 1
-Peça 2 gerada → salva → Agente 03 valida Peça 2
-Peça 3 gerada → salva → Agente 03 valida Peça 3
-Peça 4 gerada → salva → Agente 03 valida Peça 4
-Peça 5 gerada → salva → Agente 03 valida Peça 5
-```
+| # | Peça | Duração | Arquivo |
+|---|------|---------|---------|
+| 1 | Peça Estática | — | `outputs/02-peca-01-estatico.md` |
+| 2 | Vídeo Narrado | **15 segundos** | `outputs/02-peca-02-narrado.md` |
+| 3 | Vídeo Apresentadora | **30 segundos** | `outputs/02-peca-03-apresentadora.md` |
+
+**3 roteiros. NÃO duplicar. NÃO criar versões alternativas.**
 
 ---
 
 ## Input
-briefing.json validado (todas as 9 seções presentes e aprovadas pelo Agente 01)
+briefing.json validado pelo Agente 01
 
 ---
 
 ## O que ele faz
 
-### 1. Leitura do briefing (uma vez, antes de tudo)
-Antes de criar qualquer coisa, o agente lê e absorve:
-- `dados_financeiros` — todos os números exatos (nunca inventar dados)
-- `pontos_fortes.hierarquia` — respeitar a ordem de prioridade (posição 1→5)
-- `dos.diretrizes` — tudo que DEVE aparecer nos criativos
-- `donts.diretrizes` — tudo que NÃO PODE aparecer
-- `localizacao.caracteristicas_principais` — contexto da região
-- `publico_alvo.prioridades` — pra quem estamos falando
-- `perfil_hospede` — quem vai se hospedar
-- `estrutura_criativos` — pontos obrigatórios, formatos, instruções visuais obrigatórias
+### 1. Leitura do briefing (uma vez)
+Antes de criar qualquer coisa, absorver:
+- `dados_financeiros` — números exatos (nunca inventar)
+- `pontos_fortes.hierarquia` — ordem de prioridade (1→5)
+- `dos.diretrizes` — o que DEVE aparecer
+- `donts.diretrizes` — o que NÃO PODE aparecer
+- `localizacao` — contexto da região
+- `publico_alvo` — pra quem estamos falando
+- `estrutura_criativos` — pontos obrigatórios, instruções visuais
 
-### 2. Decisão criativa (uma vez, antes de tudo)
-Com base no briefing, o agente decide SOZINHO:
-- Quantas cenas cada vídeo terá
-- A ordem dos takes (qual cena vem primeiro, segunda, etc.)
-- O arco narrativo de cada vídeo
-- Os ganchos de abertura
-- A distribuição dos pontos fortes ao longo das cenas
+### 2. Geração dos roteiros (1 por vez, entrega imediata)
 
-Decisões devem ser JUSTIFICADAS pelo briefing (não por achismo).
-
-### 3. Geração das peças (uma por vez, entrega imediata)
-
-**Ordem de geração:**
-1. Gerar Peça 1 → salvar em `outputs/02-peca-01.md` → liberar pro Agente 03
-2. Gerar Peça 2 → salvar em `outputs/02-peca-02.md` → liberar pro Agente 03
-3. Gerar Peça 3 → salvar em `outputs/02-peca-03.md` → liberar pro Agente 03
-4. Gerar Peça 4 → salvar em `outputs/02-peca-04.md` → liberar pro Agente 03
-5. Gerar Peça 5 → salvar em `outputs/02-peca-05.md` → liberar pro Agente 03
-
-**IMPORTANTE:** Não acumular. Salvou o arquivo = próximo agente já pode processar.
+```
+Roteiro 1 (Estático) → salva → libera pro Agente 03
+Roteiro 2 (Narrado) → salva → libera pro Agente 03
+Roteiro 3 (Apresentadora) → salva → libera pro Agente 03
+```
 
 ---
 
-## Peças a entregar
-
-- PEÇA 1 — Vídeo com Apresentadora (30s) → `outputs/02-peca-01.md`
-- PEÇA 2 — Vídeo com Apresentadora (15s) → `outputs/02-peca-02.md`
-- PEÇA 3 — Vídeo Narrado (30s) → `outputs/02-peca-03.md`
-- PEÇA 4 — Vídeo Narrado (15s) → `outputs/02-peca-04.md`
-- PEÇA 5 — Peça Estática → `outputs/02-peca-05.md`
-
----
-
-## Formato obrigatório — Vídeo com Apresentadora
-
-A apresentadora é **Monica Medeiros**, CCO e sócia fundadora da Seazone.
-SEMPRE posicioná-la como dona/sócia fundadora. Nunca como atriz, porta-voz
-ou figura contratada. Ela fala com autoridade de quem construiu a empresa.
-
-```
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-VÍDEO COM APRESENTADORA — [duração]
-Empreendimento: [nome do projeto]
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-CENA 1:
-  Cena: [descrição detalhada do que aparece na tela — visual, câmera,
-         ambiente, elementos. Deve ser específico o suficiente pra
-         qualquer editor/produtor executar sem dúvidas]
-  Lettering: [texto escrito na tela — exato, com posição se relevante.
-              Se não tem lettering nesta cena, escrever "—"]
-  Roteiro: [fala EXATA da Monica. Escrita como ela falaria naturalmente,
-            como sócia fundadora. Tom de autoridade + proximidade.
-            Se ela não fala nesta cena, escrever "—"]
-
-CENA 2:
-  Cena: [...]
-  Lettering: [...]
-  Roteiro: [...]
-
-CENA 3:
-  Cena: [...]
-  Lettering: [...]
-  Roteiro: [...]
-
-...
-
-CENA FINAL:
-  Cena: [...]
-  Lettering: [CTA]
-  Roteiro: [fala final da Monica com CTA]
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-```
-
-### Regras para vídeo com apresentadora:
-- Monica SEMPRE se apresenta ou é contextualizada como sócia fundadora da Seazone
-- Fala natural, como dona do negócio — credibilidade > performance
-- Dados financeiros integrados naturalmente na fala (não parecer leitura)
-- Tom: autoridade com proximidade. "Eu construí isso, e vou te mostrar."
-- Versão 15s: máximo 3 cenas, ir direto ao ponto
-- Versão 30s: arco narrativo completo com gancho → dados → CTA
-
----
-
-## Formato obrigatório — Vídeo Narrado
-
-```
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-VÍDEO NARRADO — [duração]
-Empreendimento: [nome do projeto]
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-CENA 1:
-  Cena: [descrição detalhada do visual — sem apresentadora.
-         Pode ser drone, fachada, rooftop, detalhes, lifestyle, etc.]
-  Lettering: [texto na tela — exato]
-  Roteiro: [narração em off — texto exato que será narrado.
-            Tom profissional, confiante, informativo.
-            Se não tem narração nesta cena, escrever "—"]
-
-CENA 2:
-  Cena: [...]
-  Lettering: [...]
-  Roteiro: [...]
-
-...
-
-CENA FINAL:
-  Cena: [...]
-  Lettering: [CTA]
-  Roteiro: [narração final com CTA]
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-```
-
-### Regras para vídeo narrado:
-- SEM apresentadora — só visual + narração em off + lettering
-- Narração: tom profissional, confiante, ritmo claro
-- Visual: drone, fachada, rooftop, detalhes do empreendimento, região
-- Versão 15s: máximo 3 cenas, impacto rápido
-- Versão 30s: narrativa visual completa
-
----
-
-## Formato obrigatório — Peça Estática
+## Formato — Peça Estática
 
 ```
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -171,43 +53,118 @@ PEÇA ESTÁTICA
 Empreendimento: [nome do projeto]
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
+  Imagem de fundo: Localização (foto real do Drive)
   Headline: [frase de impacto com dado financeiro]
-  Subtexto: [dado de suporte ou CTA]
-  Visual: [descrição objetiva da imagem — 2 a 3 frases]
+  Subtexto: [dado de suporte ou contexto]
+  CTA: [chamada para ação]
+  Dados para overlay: [ROI, rentabilidade, preço — exatos do briefing]
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 ```
 
-### Regras para peça estática:
+### Regras:
 - Deve funcionar sozinha (sem contexto de vídeo)
 - Headline com dado financeiro do briefing
 - Incluir pelo menos 2 pontos fortes
-- Visual alinhado com instruções visuais do briefing
+- Imagem de fundo = foto de localização do Drive (NÃO gerar por IA)
 
 ---
 
-## Regras gerais (todas as 5 peças)
+## Formato — Vídeo Narrado
 
-- Seguir hierarquia dos pontos fortes (posição 1→5 do briefing)
-- Incluir pontos fortes obrigatórios da seção `estrutura_criativos`
+```
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+VÍDEO NARRADO
+Empreendimento: [nome do projeto]
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+CENA 1:
+  Visual: [qual imagem do Drive usar — fachada, rooftop ou localização]
+  Movimento: [como animar — slow zoom in, pan right, etc.]
+  Lettering: [texto na tela]
+  Narração: [texto exato que a Monica narra em off]
+
+CENA 2:
+  Visual: [...]
+  Movimento: [...]
+  Lettering: [...]
+  Narração: [...]
+
+...
+
+CENA FINAL:
+  Visual: [...]
+  Movimento: [...]
+  Lettering: [CTA]
+  Narração: [narração final com CTA]
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+```
+
+### Regras:
+- SEM apresentadora — só visual + narração em off + lettering
+- Visual: SEMPRE referenciar imagens do Drive (fachada, rooftop, localização)
+- Narração: tom profissional, confiante, ritmo claro (voz da Monica clonada)
+- 3 a 5 cenas no máximo
+- Cada cena deve especificar QUAL imagem do Drive usar
+
+---
+
+## Formato — Vídeo Apresentadora
+
+```
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+VÍDEO APRESENTADORA
+Empreendimento: [nome do projeto]
+Apresentadora: Monica Medeiros — CCO e sócia fundadora da Seazone
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+CENA 1 — MONICA:
+  Monica fala: "[fala exata da Monica]"
+  Lettering: [texto na tela]
+
+CENA 2 — EMPREENDIMENTO:
+  Visual: [qual imagem do Drive usar]
+  Movimento: [como animar]
+  Lettering: [texto/dados na tela]
+
+CENA 3 — MONICA:
+  Monica fala: "[fala exata]"
+  Lettering: [...]
+
+...
+
+CENA FINAL:
+  Monica fala: "[CTA final]"
+  Lettering: [CTA]
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+```
+
+### Regras:
+- Monica como sócia fundadora (autoridade, não atriz)
+- Fala natural, como dona do negócio
+- Dados financeiros integrados naturalmente na fala
+- Intercalar: cenas da Monica falando ↔ cenas com imagens do empreendimento
+- Cenas do empreendimento devem especificar QUAL imagem do Drive usar
+- 3 a 5 cenas no máximo
+
+---
+
+## Regras gerais (todos os 3 roteiros)
+
+- Seguir hierarquia dos pontos fortes (1→5 do briefing)
 - Respeitar DO's e DON'Ts do briefing
-- Dados financeiros exatos (NUNCA inventar ou arredondar)
+- Dados financeiros EXATOS (nunca inventar ou arredondar)
 - CTA claro no final de cada peça
 - Lettering: máximo 7 palavras por tela
-- Demais regras visuais, tom de voz e proibições: seguir CLAUDE.md
+- Tom e identidade: seguir CLAUDE.md
 
 ---
 
 ## Output
 
-Cada peça é salva individualmente assim que finalizada:
-
 ```
-outputs/02-peca-01.md  ← Vídeo Apresentadora 30s (liberado imediatamente)
-outputs/02-peca-02.md  ← Vídeo Apresentadora 15s (liberado imediatamente)
-outputs/02-peca-03.md  ← Vídeo Narrado 30s (liberado imediatamente)
-outputs/02-peca-04.md  ← Vídeo Narrado 15s (liberado imediatamente)
-outputs/02-peca-05.md  ← Peça Estática (liberado imediatamente)
+outputs/02-peca-01-estatico.md       ← Peça Estática
+outputs/02-peca-02-narrado.md        ← Vídeo Narrado
+outputs/02-peca-03-apresentadora.md  ← Vídeo Apresentadora
 ```
 
-Cada arquivo contém o roteiro completo da peça, pronto pro Agente 03 validar.
-O Agente 03 NÃO precisa esperar todas as 5 — valida cada uma assim que chegar.
+**3 arquivos. Nunca mais, nunca menos.**

@@ -1,17 +1,21 @@
 // AGENTE 05 — EXECUTOR CRIATIVO (vídeos)
 // Chama fal.ai para gerar um vídeo por vez a partir de uma imagem
+// Engines: "kling" (cenas do empreendimento), "veo3" (Monica apresentadora — mais realista)
 
 module.exports = async function handler(req, res) {
   if (req.method !== "POST") {
     return res.status(405).json({ error: "Method not allowed" });
   }
 
-  const { prompt, engine, imageUrl, format } = req.body;
-  // engine: "kling", "minimax", or "luma"
-  // imageUrl: URL da imagem frame-chave gerada anteriormente
+  const { prompt, engine, imageUrl, format, duration, generateAudio } = req.body;
+  // engine: "kling" ou "veo3"
+  // imageUrl: URL da imagem (do Drive ou gerada)
+  // format: "9:16" (padrão)
+  // duration: duração do vídeo (veo3: "4s"/"6s"/"8s", kling: "5"/"10")
+  // generateAudio: boolean (só veo3 — gera áudio junto com o vídeo)
 
-  if (!prompt || !engine || !imageUrl) {
-    return res.status(400).json({ error: "prompt, engine and imageUrl required" });
+  if (!prompt || !engine) {
+    return res.status(400).json({ error: "prompt and engine required" });
   }
 
   const falKey = process.env.FAL_KEY;
@@ -22,28 +26,42 @@ module.exports = async function handler(req, res) {
   let endpoint, body;
 
   if (engine === "kling") {
+    // Kling: para animar imagens do Drive (cenas do empreendimento)
+    if (!imageUrl) {
+      return res.status(400).json({ error: "imageUrl required for kling" });
+    }
     endpoint = "https://fal.run/fal-ai/kling-video/v2/master";
     body = {
       prompt,
       image_url: imageUrl,
-      duration: "5",
-      aspect_ratio: format === "4:5" ? "4:5" : "9:16",
+      duration: duration || "5",
+      aspect_ratio: "9:16",
     };
-  } else if (engine === "minimax") {
-    endpoint = "https://fal.run/fal-ai/minimax-video";
+  } else if (engine === "veo3" && imageUrl) {
+    // Veo 3 image-to-video: para a Monica (mais realista pra pessoas)
+    endpoint = "https://fal.run/fal-ai/veo3/image-to-video";
     body = {
       prompt,
       image_url: imageUrl,
+      duration: duration || "8s",
+      aspect_ratio: "9:16",
+      resolution: "720p",
+      generate_audio: generateAudio ?? false,
+      safety_tolerance: 5,
     };
-  } else if (engine === "luma") {
-    endpoint = "https://fal.run/fal-ai/luma-dream-machine/ray-2/image-to-video";
+  } else if (engine === "veo3") {
+    // Veo 3 text-to-video: gerar a Monica do zero (sem imagem base)
+    endpoint = "https://fal.run/fal-ai/veo3";
     body = {
       prompt,
-      image_url: imageUrl,
-      aspect_ratio: format === "4:5" ? "3:4" : "9:16",
+      duration: duration || "8s",
+      aspect_ratio: "9:16",
+      resolution: "720p",
+      generate_audio: generateAudio ?? false,
+      safety_tolerance: 5,
     };
   } else {
-    return res.status(400).json({ error: "engine must be 'kling', 'minimax', or 'luma'" });
+    return res.status(400).json({ error: "engine must be 'kling' or 'veo3'" });
   }
 
   try {
@@ -74,7 +92,8 @@ module.exports = async function handler(req, res) {
       url: videoUrl,
       engine,
       prompt,
-      format,
+      format: format || "9:16",
+      hasAudio: engine === "veo3" && (generateAudio ?? false),
     });
   } catch (error) {
     return res.status(500).json({ error: error.message });

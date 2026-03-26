@@ -1,32 +1,50 @@
 // AGENTE 06 — VALIDADOR DO CRIATIVO
-// Valida se os criativos gerados atendem ao briefing
+// Valida 1 entregável por vez contra o briefing
 
 const SYSTEM_PROMPT = `Você é o Agente 06 — Validador do Criativo da Máquina de Criativos Seazone.
-Você é EXTREMAMENTE RIGOROSO. Só aprova se TUDO estiver perfeito.
+Valida 1 entregável por vez. Só aprova se TUDO estiver correto.
 
-# CHECKLIST OBRIGATÓRIO — REPROVAR se qualquer item falhar:
+# SÃO 3 ENTREGÁVEIS. SÓ 3.
+1. Peça Estática — 1 imagem do Drive + dados como overlay
+2. Vídeo Narrado 15s — imagens do Drive animadas + narração voz Monica
+3. Vídeo Apresentadora 30s — Monica (Veo 3) + cenas animadas (Kling)
 
-1. COMPLETUDE: todas as 5 peças devem ter imagens geradas (Flux Pro + Recraft)
-2. VÍDEOS: peças 3 e 4 (narradas) DEVEM ter vídeos gerados (Kling + Luma). Se não tem → REPROVAR
-3. DON'Ts: verificar se os prompts NÃO mencionam itens proibidos (vista mar nas unidades, pé na areia, ticket baixo, distância exata)
-4. HIERARQUIA: ROI e localização devem ter mais destaque que outros pontos
-5. DADOS: ROI deve ser 16,40% (não 16%). Rendimento deve ser R$ 5.500/mês. Valorização 81%. EXATOS.
-6. VISUAL: prompts devem incluir estilo Seazone (clean, premium, golden hour, sem escurecer)
-7. MONICA: peças 1 e 2 devem posicionar Monica como sócia fundadora (não atriz)
+# CHECKLIST POR TIPO
 
-# SEJA DURO
-- Se faltam vídeos → "REPROVADO: vídeos não foram gerados para peças narradas"
-- Se dados estão arredondados → "REPROVADO: dados financeiros imprecisos"
-- Se DON'T foi violado → "REPROVADO: DON'T violado"
-- Só aprove se TUDO estiver correto
+## Estático:
+- [ ] Usou imagem de Localização do Drive (NÃO gerou imagem nova)
+- [ ] Dados do briefing corretos (ROI, rentabilidade, preço, nome)
+- [ ] Hierarquia de mensagens segue referência
+- [ ] DON'Ts não violados
+
+## Narrado 15s:
+- [ ] Vídeos das cenas existem (animados via Kling)
+- [ ] Usou imagens do Drive (NÃO gerou imagens novas)
+- [ ] Áudio da narração existe (voz Monica via ElevenLabs)
+- [ ] Dados citados batem com briefing
+- [ ] Máximo 3 cenas
+
+## Apresentadora 30s:
+- [ ] Vídeo da Monica existe (Veo 3)
+- [ ] Monica como sócia fundadora (não atriz)
+- [ ] Falas correspondem ao roteiro
+- [ ] Cenas do empreendimento usam imagens do Drive
+- [ ] Dados financeiros exatos
+
+# REGRAS
+- DON'Ts violados = reprovação automática
+- Dados errados = reprovação automática
+- Imagem gerada por IA quando deveria usar Drive = reprovação automática
+- Se gerou mais de 3 entregáveis = reprovação automática
 
 # FORMATO
 {
   "approved": true/false,
+  "piece": 1/2/3,
+  "pieceType": "estatico/narrado/apresentadora",
   "summary": "resumo objetivo",
   "issues": ["problema 1", "problema 2"],
-  "pieces": [{"piece": 1, "status": "ok/fail", "notes": "..."}],
-  "recommendation": "o que precisa ser corrigido (se reprovado)"
+  "recommendation": "o que corrigir (se reprovado)"
 }
 
 RESPONDA APENAS O JSON.`;
@@ -36,9 +54,9 @@ module.exports = async function handler(req, res) {
     return res.status(405).json({ error: "Method not allowed" });
   }
 
-  const { briefing, creatives } = req.body;
-  if (!briefing || !creatives) {
-    return res.status(400).json({ error: "briefing and creatives required" });
+  const { briefing, creative, pieceNumber } = req.body;
+  if (!briefing || !creative || !pieceNumber) {
+    return res.status(400).json({ error: "briefing, creative and pieceNumber (1-3) required" });
   }
 
   const apiKey = process.env.OPENROUTER_API_KEY;
@@ -47,7 +65,8 @@ module.exports = async function handler(req, res) {
   }
 
   const briefingText = typeof briefing === "string" ? briefing : JSON.stringify(briefing, null, 2);
-  const creativesText = typeof creatives === "string" ? creatives : JSON.stringify(creatives, null, 2);
+  const creativeText = typeof creative === "string" ? creative : JSON.stringify(creative, null, 2);
+  const pieceTypes = { 1: "estático", 2: "narrado 15s", 3: "apresentadora 30s" };
 
   try {
     const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
@@ -63,7 +82,7 @@ module.exports = async function handler(req, res) {
         max_tokens: 1500,
         messages: [
           { role: "system", content: SYSTEM_PROMPT },
-          { role: "user", content: `# BRIEFING\n\n${briefingText}\n\n# CRIATIVOS GERADOS\n\n${creativesText}\n\nValide os criativos.` },
+          { role: "user", content: `# BRIEFING\n\n${briefingText}\n\n# ENTREGÁVEL ${pieceNumber} (${pieceTypes[pieceNumber]}) PARA VALIDAR\n\n${creativeText}\n\nValide APENAS este entregável.` },
         ],
       }),
     });
@@ -81,7 +100,7 @@ module.exports = async function handler(req, res) {
       const jsonMatch = text.match(/\{[\s\S]*\}/);
       result = JSON.parse(jsonMatch ? jsonMatch[0] : text);
     } catch {
-      result = { approved: false, summary: "Validação inconclusiva. Revisão manual necessária.", issues: ["Resposta do validador não foi JSON válido"] };
+      result = { approved: false, summary: "Validação inconclusiva.", issues: ["Resposta não é JSON válido"] };
     }
 
     return res.status(200).json(result);

@@ -17,88 +17,46 @@ A maior empresa de gestão de aluguel por temporada do Brasil. Uma proptech que 
 # SUA TAREFA
 Você gera roteiros de criativos de marketing para empreendimentos Seazone.
 Gere APENAS a peça solicitada, no formato exato pedido. Seja direto e objetivo.
-NUNCA invente dados financeiros — use APENAS os fornecidos no briefing.`;
+NUNCA invente dados financeiros — use APENAS os fornecidos no briefing.
+
+# REGRA ABSOLUTA: SÃO 3 PEÇAS. SÓ 3.
+1. Peça Estática (pieceNumber=1)
+2. Vídeo Narrado 15s (pieceNumber=2)
+3. Vídeo Apresentadora 30s (pieceNumber=3)
+NÃO existe peça 4 ou 5. NÃO criar versões alternativas.`;
 
 const PIECE_PROMPTS = {
-  1: `Gere o roteiro da PEÇA 1 — Vídeo com Apresentadora (30s).
+  1: `Gere o roteiro da PEÇA 1 — Peça Estática.
 
-A apresentadora é Monica Medeiros, CCO e sócia fundadora da Seazone.
-SEMPRE posicioná-la como dona/sócia fundadora. Fala natural, autoridade + proximidade.
-
-Formato EXATO:
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-VÍDEO COM APRESENTADORA — 30s
-Empreendimento: [nome do projeto]
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-CENA 1:
-  Cena: [descrição detalhada do visual]
-  Lettering: [texto na tela ou "—"]
-  Roteiro: [fala EXATA da Monica]
-
-(continuar com todas as cenas necessárias — entre 3 e 6 cenas)
-
-Regras:
-- Arco narrativo: gancho → dados → CTA
-- Dados financeiros integrados naturalmente na fala
-- CTA claro na cena final
-- Lettering: máximo 7 palavras por tela
-- Seguir hierarquia dos pontos fortes (posição 1→5)
-- Respeitar DO's e DON'Ts do briefing`,
-
-  2: `Gere o roteiro da PEÇA 2 — Vídeo com Apresentadora (15s).
-
-A apresentadora é Monica Medeiros, CCO e sócia fundadora da Seazone.
-SEMPRE posicioná-la como dona/sócia fundadora. Fala natural, autoridade + proximidade.
+A imagem de fundo será uma foto REAL de localização do Google Drive (NÃO gerar imagem por IA).
+Os dados do briefing serão sobrepostos como texto/lettering.
+Siga EXATAMENTE a hierarquia de mensagens da peça estática de referência.
 
 Formato EXATO:
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-VÍDEO COM APRESENTADORA — 15s
+PEÇA ESTÁTICA
 Empreendimento: [nome do projeto]
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-CENA 1:
-  Cena: [descrição detalhada do visual]
-  Lettering: [texto na tela ou "—"]
-  Roteiro: [fala EXATA da Monica]
-
-(máximo 3 cenas — ir direto ao ponto)
+  Imagem de fundo: Localização (foto real do Google Drive — NÃO gerar por IA)
+  Headline: [frase de impacto com dado financeiro]
+  Subtexto: [dado de suporte ou contexto]
+  CTA: [chamada para ação]
+  Dados para overlay: [listar dados exatos do briefing: ROI, rentabilidade, preço, nome]
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 Regras:
-- Máximo 3 cenas
-- Direto ao ponto — gancho forte + dado + CTA
-- Lettering: máximo 7 palavras por tela
-- Seguir hierarquia dos pontos fortes
+- Deve funcionar sozinha (sem contexto de vídeo)
+- Headline com dado financeiro do briefing
+- Incluir pelo menos 2 pontos fortes
+- Imagem de fundo = foto de localização do Drive
 - Respeitar DO's e DON'Ts do briefing`,
 
-  3: `Gere o roteiro da PEÇA 3 — Vídeo Narrado (30s).
+  2: `Gere o roteiro da PEÇA 2 — Vídeo Narrado (15s).
 
 SEM apresentadora — só visual + narração em off + lettering.
-
-Formato EXATO:
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-VÍDEO NARRADO — 30s
-Empreendimento: [nome do projeto]
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-CENA 1:
-  Cena: [descrição detalhada do visual — drone, fachada, rooftop, etc.]
-  Lettering: [texto na tela]
-  Roteiro: [narração em off — tom profissional, confiante]
-
-(continuar com todas as cenas — entre 3 e 6 cenas)
-
-Regras:
-- Narração: tom profissional, confiante, ritmo claro
-- Visual: drone, fachada, rooftop, detalhes, região
-- CTA claro na cena final
-- Lettering: máximo 7 palavras por tela
-- Seguir hierarquia dos pontos fortes
-- Respeitar DO's e DON'Ts do briefing`,
-
-  4: `Gere o roteiro da PEÇA 4 — Vídeo Narrado (15s).
-
-SEM apresentadora — só visual + narração em off + lettering.
+As imagens serão fotos REAIS do Drive (fachada, rooftop, localização) animadas por IA.
+A narração será feita com a voz clonada da Monica via ElevenLabs.
 
 Formato EXATO:
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -107,37 +65,76 @@ Empreendimento: [nome do projeto]
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 CENA 1:
-  Cena: [descrição detalhada do visual]
+  Visual: [qual imagem do Drive usar — fachada, rooftop ou localização]
+  Movimento: [como animar — slow zoom in, pan right, tilt up, etc.]
   Lettering: [texto na tela]
-  Roteiro: [narração em off]
+  Narração: [texto exato da narração em off — tom profissional, confiante]
 
-(máximo 3 cenas — impacto rápido)
+CENA 2:
+  Visual: [...]
+  Movimento: [...]
+  Lettering: [...]
+  Narração: [...]
+
+CENA FINAL:
+  Visual: [...]
+  Movimento: [...]
+  Lettering: [CTA]
+  Narração: [narração final com CTA]
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 Regras:
-- Máximo 3 cenas
-- Impacto rápido — gancho visual forte
+- Máximo 3 cenas (é 15 segundos!)
+- Cada cena DEVE especificar qual imagem do Drive usar (fachada, rooftop ou localização)
+- Narração: tom profissional, confiante, ritmo claro
+- Impacto rápido — gancho visual forte + dado + CTA
 - Lettering: máximo 7 palavras por tela
 - Seguir hierarquia dos pontos fortes
 - Respeitar DO's e DON'Ts do briefing`,
 
-  5: `Gere o roteiro da PEÇA 5 — Peça Estática.
+  3: `Gere o roteiro da PEÇA 3 — Vídeo Apresentadora (30s).
+
+A apresentadora é Monica Medeiros, CCO e sócia fundadora da Seazone.
+SEMPRE posicioná-la como dona/sócia fundadora. Fala natural, autoridade + proximidade.
+O vídeo da Monica será gerado por IA (Veo 3), intercalado com cenas do empreendimento
+(fotos REAIS do Drive animadas por Kling).
 
 Formato EXATO:
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-PEÇA ESTÁTICA
+VÍDEO APRESENTADORA — 30s
 Empreendimento: [nome do projeto]
+Apresentadora: Monica Medeiros — CCO e sócia fundadora da Seazone
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-  Headline: [frase de impacto com dado financeiro]
-  Subtexto: [dado de suporte ou CTA]
-  Visual: [descrição objetiva da imagem — 2 a 3 frases]
+CENA 1 — MONICA:
+  Monica fala: "[fala exata da Monica]"
+  Lettering: [texto na tela]
+
+CENA 2 — EMPREENDIMENTO:
+  Visual: [qual imagem do Drive usar — fachada, rooftop ou localização]
+  Movimento: [como animar]
+  Lettering: [dados/texto na tela]
+
+CENA 3 — MONICA:
+  Monica fala: "[fala exata]"
+  Lettering: [...]
+
+...
+
+CENA FINAL:
+  Monica fala: "[CTA final]"
+  Lettering: [CTA]
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 Regras:
-- Deve funcionar sozinha (sem contexto de vídeo)
-- Headline com dado financeiro do briefing
-- Incluir pelo menos 2 pontos fortes
-- Visual alinhado com estilo Seazone (clean, premium, instagramável)
+- Entre 3 e 5 cenas
+- Arco narrativo: gancho → dados → CTA
+- Intercalar: cenas da Monica falando ↔ cenas com imagens do empreendimento
+- Cenas do empreendimento: especificar qual imagem do Drive usar
+- Dados financeiros integrados naturalmente na fala
+- CTA claro na cena final
+- Lettering: máximo 7 palavras por tela
+- Seguir hierarquia dos pontos fortes
 - Respeitar DO's e DON'Ts do briefing`,
 };
 
@@ -148,8 +145,8 @@ module.exports = async function handler(req, res) {
 
   const { briefing, pieceNumber } = req.body;
 
-  if (!briefing || !pieceNumber || pieceNumber < 1 || pieceNumber > 5) {
-    return res.status(400).json({ error: "briefing and pieceNumber (1-5) required" });
+  if (!briefing || !pieceNumber || pieceNumber < 1 || pieceNumber > 3) {
+    return res.status(400).json({ error: "briefing and pieceNumber (1-3) required. 1=estático, 2=narrado 15s, 3=apresentadora 30s" });
   }
 
   const apiKey = process.env.OPENROUTER_API_KEY;

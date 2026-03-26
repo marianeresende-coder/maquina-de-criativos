@@ -8,12 +8,12 @@ Peças aprovadas são liberadas imediatamente para o Agente 04 — sem esperar a
 **MODO DE EXECUÇÃO: VALIDAÇÃO CONTÍNUA (peça por peça)**
 
 ```
-02-peca-01.md chega → valida → ✅ libera pro Agente 04 | ❌ devolve pro Agente 02
-02-peca-02.md chega → valida → ✅ libera pro Agente 04 | ❌ devolve pro Agente 02
-02-peca-03.md chega → valida → ✅ libera pro Agente 04 | ❌ devolve pro Agente 02
-02-peca-04.md chega → valida → ✅ libera pro Agente 04 | ❌ devolve pro Agente 02
-02-peca-05.md chega → valida → ✅ libera pro Agente 04 | ❌ devolve pro Agente 02
+02-peca-01-estatico.md chega → valida → ✅ libera pro Agente 04 | ❌ devolve pro Agente 02
+02-peca-02-narrado.md chega → valida → ✅ libera pro Agente 04 | ❌ devolve pro Agente 02
+02-peca-03-apresentadora.md chega → valida → ✅ libera pro Agente 04 | ❌ devolve pro Agente 02
 ```
+
+**São 3 peças. Só 3. Nunca mais.**
 
 ---
 

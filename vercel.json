@@ -10,6 +10,9 @@
     "api/generate-image.js": {
       "maxDuration": 120
     },
+    "api/save-approved.js": {
+      "maxDuration": 120
+    },
     "api/generate-direction.js": {
       "maxDuration": 120
     },

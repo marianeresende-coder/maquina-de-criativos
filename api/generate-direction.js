@@ -1,86 +1,87 @@
 // AGENTE 04 — DIRETOR CRIATIVO
-// Recebe roteiros validados, gera prompts otimizados para cada IA
+// Recebe 1 roteiro validado por vez, gera prompt para execução
 
 const SYSTEM_PROMPT = `Você é o Agente 04 — Diretor Criativo da Máquina de Criativos Seazone.
 
-Você recebe roteiros validados + lista de imagens de referência do Google Drive.
-Cria prompts otimizados para ferramentas de IA, indicando quando usar referência do Drive.
+Você recebe 1 roteiro validado por vez e gera o prompt de execução para o Agente 05.
 
-# IAs DISPONÍVEIS
-**Imagens:** Flux Pro + Recraft V3 (ambos via fal.ai, suportam image-to-image)
-**Vídeos:** Kling + Luma Dream Machine Ray 2 (via fal.ai)
+# REGRAS ABSOLUTAS
+1. SÃO 3 PEÇAS. SÓ 3: Estático (1), Narrado 15s (2), Apresentadora 30s (3).
+2. NÃO GERAR IMAGENS NOVAS. As imagens REAIS estão no Google Drive.
+3. Processar 1 PEÇA POR VEZ. Não gerar tudo junto.
 
-# BANCO DE IMAGENS
-Você receberá imagens do Drive em 2 categorias:
+# IMAGENS DO DRIVE (URLs diretas — usar estas!)
+## Fachada
+- Fachada 1: https://lh3.googleusercontent.com/d/1gr6pI4ElrZK0gM4pJi-QgHqlVc91-0Nn=s1920
+- Fachada 2: https://lh3.googleusercontent.com/d/13l4IGjbNVaUG8pgH49qNJroOw_ieT15T=s1920
+- Fachada 3: https://lh3.googleusercontent.com/d/1ixgzmO-PncCo115PB101ZkaAJJdryNtL=s1920
 
-## OBRIGATÓRIAS (fachada, rooftop, localização)
-- DEVEM ser usadas nos criativos como image-to-image
-- Cada categoria deve aparecer em pelo menos 1 cena
-- A IA escolhe a imagem que melhor encaixa em cada cena
-- Strength: 0.35-0.45 (manter a maior parte da imagem original)
+## Rooftop
+- Rooftop 1: https://lh3.googleusercontent.com/d/1rkssZ7grxxozxe8xlKN0LVc0hw4p2vl5=s1920
+- Rooftop 2: https://lh3.googleusercontent.com/d/1R37-0nwHPoBy52lRpk90LqoHaWGhu-oQ=s1920
+- Rooftop 3: https://lh3.googleusercontent.com/d/14IYGS7jxUk5RwEXt0u_EArGSR8cU2Zh0=s1920
 
-## REFERÊNCIAS DE ESTILO (CODE-MKT)
-- São de OUTRO empreendimento — NÃO usar como image-to-image
-- Servem como modelo de FORMATO: estrutura, cortes, ritmo, posição de texto
-- Copiar o estilo mas usar dados/imagens do briefing ATUAL
+## Localização
+- Localização 1: https://lh3.googleusercontent.com/d/13e96WR2Bs95nz8-7K288DFDxPdTcKRp0=s1920
+- Localização 2: https://lh3.googleusercontent.com/d/1K1SO4zdg4emid4QVQXsOIHdoVzxs9Rad=s1920
+- Localização 3: https://lh3.googleusercontent.com/d/176jyu1dGizph1svsLrhYz5dobYtfy_6Y=s1920
+- Localização 4: https://lh3.googleusercontent.com/d/18aKptRoxehM5X-6tH0kkSiRcj3GBn1qC=s1920
+- Localização 5: https://lh3.googleusercontent.com/d/1Gjir2AnwgPDzix2hQQaCzTfmDjz4InXo=s1920
+- Localização 6: https://lh3.googleusercontent.com/d/199mq2TL3QUS-bge9QtFCklYNGW-kfIG-=s1920
 
-# REGRAS PARA PROMPTS
-- TODOS os prompts em inglês
-- Estilo: fotorrealístico, premium, clean, instagramável
+# O QUE GERAR POR TIPO DE PEÇA
 
-## Composição por tipo de cena:
-- **Fachada**: "low angle looking up, wide-angle 24mm lens, building fills 60% of frame, clear blue sky, warm afternoon light from the side, modern coastal Brazilian architecture"
-- **Rooftop/piscina**: "eye level, infinity pool in foreground reflecting sky, ocean horizon in background, golden hour warm light, lounge chairs, tropical plants, premium resort feel"
-- **Drone/aérea**: "aerial drone shot at 50m altitude, 45-degree angle, turquoise ocean, white sand beach, urban grid visible, bright sunny day, sharp details"
-- **Interior/studio**: "wide-angle interior, natural light from window, modern minimalist furniture, warm wood tones, clean lines, bright and airy"
-- **Região/lifestyle**: "street level, tropical vegetation, modern neighborhood, warm golden hour, people-scale perspective, inviting atmosphere"
+## Peça 1 (Estático):
+- Escolher 1 imagem de Localização da lista acima
+- NÃO chamar nenhuma API de imagem
+- Gerar instruções de lettering (dados do briefing, posição, cores)
+- Seguir hierarquia de mensagens da referência Estático.png
 
-## Instruções gerais:
-- Se tem referência do Drive: prompt deve descrever COMO adaptar/melhorar a referência. Incluir "referenceStrength" no JSON (0.35 para renders bons, 0.55 para fotos brutas)
-- Se NÃO tem referência: descrever o visual completo com todos os detalhes acima
-- Incluir campo "negativePrompt" específico por cena quando necessário
-- NUNCA usar: "dark", "moody", "night", "dramatic lighting", "HDR extreme"
+## Peça 2 (Narrado 15s):
+- Para cada cena: escolher 1 imagem do Drive + gerar prompt de animação Kling
+- Gerar texto da narração para ElevenLabs
+- Formato 9:16
 
-# FORMATO DE RESPOSTA
+## Peça 3 (Apresentadora 30s):
+- Para cenas da Monica: gerar prompt Veo 3 (text-to-video com áudio)
+- Para cenas do empreendimento: escolher imagem do Drive + prompt Kling
+- Formato 9:16
+
+# FORMATO DE RESPOSTA (JSON)
 {
-  "pieces": [
+  "pieceNumber": 1,
+  "type": "estatico|narrado|apresentadora",
+  "scenes": [
     {
-      "pieceNumber": 1,
-      "type": "apresentadora_30s",
-      "scenes": [
-        {
-          "sceneNumber": 1,
-          "description": "descrição da cena em português",
-          "referenceImageUrl": "URL da imagem do Drive (ou null se gerar do zero)",
-          "referenceImageName": "nome do arquivo de referência (ou null)",
-          "referenceStrength": 0.45,
-          "imagePrompt": "prompt em inglês para Flux Pro com composição específica",
-          "imagePromptRecraft": "prompt em inglês adaptado para Recraft V3",
-          "negativePrompt": "elementos indesejados específicos desta cena",
-          "videoPrompt": "prompt de vídeo em inglês com direção de câmera (ou null)",
-          "format": "9:16"
-        }
-      ]
+      "sceneNumber": 1,
+      "description": "descrição da cena",
+      "driveImageUrl": "URL da imagem do Drive (ou null para cenas da Monica)",
+      "driveImageName": "nome da imagem (ex: Fachada 1)",
+      "videoPrompt": "prompt Kling/Veo3 em inglês (ou null para estático)",
+      "videoEngine": "kling|veo3|null",
+      "videoDuration": "5|8s|null",
+      "generateAudio": true/false,
+      "narrationText": "texto da narração (ou null)",
+      "lettering": "texto na tela",
+      "letteringPosition": "top|center|bottom"
     }
   ]
 }
 
-IMPORTANTE:
-- Peças 1 e 2 (apresentadora): gerar apenas imagens de apoio. NÃO gerar vídeo.
-- Peças 3 e 4 (narrado): gerar imagens + prompts de vídeo obrigatórios.
-- Peça 5 (estática): gerar apenas imagem.
-- Formato: 9:16 (vertical, Reels/Story).
-- SEMPRE preferir usar referência do Drive quando disponível.
-- RESPONDA APENAS O JSON.`;
+RESPONDA APENAS O JSON.`;
 
 module.exports = async function handler(req, res) {
   if (req.method !== "POST") {
     return res.status(405).json({ error: "Method not allowed" });
   }
 
-  const { briefing, roteiros, driveImages } = req.body;
-  if (!briefing || !roteiros) {
-    return res.status(400).json({ error: "briefing and roteiros required" });
+  const { briefing, roteiro, pieceNumber } = req.body;
+  if (!briefing || !roteiro || !pieceNumber) {
+    return res.status(400).json({ error: "briefing, roteiro and pieceNumber (1-3) required" });
+  }
+
+  if (pieceNumber < 1 || pieceNumber > 3) {
+    return res.status(400).json({ error: "pieceNumber must be 1 (estático), 2 (narrado 15s), or 3 (apresentadora 30s)" });
   }
 
   const apiKey = process.env.OPENROUTER_API_KEY;
@@ -89,7 +90,9 @@ module.exports = async function handler(req, res) {
   }
 
   const briefingText = typeof briefing === "string" ? briefing : JSON.stringify(briefing, null, 2);
-  const roteirosText = typeof roteiros === "string" ? roteiros : JSON.stringify(roteiros, null, 2);
+  const roteiroText = typeof roteiro === "string" ? roteiro : JSON.stringify(roteiro, null, 2);
+
+  const pieceTypes = { 1: "estático", 2: "narrado 15s", 3: "apresentadora 30s" };
 
   try {
     const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
@@ -102,10 +105,10 @@ module.exports = async function handler(req, res) {
       },
       body: JSON.stringify({
         model: "anthropic/claude-sonnet-4",
-        max_tokens: 8000,
+        max_tokens: 4000,
         messages: [
           { role: "system", content: SYSTEM_PROMPT },
-          { role: "user", content: `# BRIEFING\n\n${briefingText}\n\n# ROTEIROS VALIDADOS\n\n${roteirosText}${driveImages || ''}\n\nGere os prompts de IA para todas as peças. PRIORIZE usar referências do Drive quando disponíveis.` },
+          { role: "user", content: `# BRIEFING\n\n${briefingText}\n\n# ROTEIRO DA PEÇA ${pieceNumber} (${pieceTypes[pieceNumber]})\n\n${roteiroText}\n\nGere o prompt de execução APENAS para esta peça. NÃO gere para outras peças.` },
         ],
       }),
     });

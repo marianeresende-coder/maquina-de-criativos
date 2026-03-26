@@ -67,14 +67,12 @@ function useTimer(running) {
 }
 
 const PIECE_NAMES = [
-  'Video Apresentadora 30s',
-  'Video Apresentadora 15s',
-  'Video Narrado 30s',
-  'Video Narrado 15s',
-  'Peca Estatica',
+  'Peça Estática',
+  'Vídeo Narrado 15s',
+  'Vídeo Apresentadora 30s',
 ];
 
-const PIECE_ICONS = ['🎬', '🎬', '🎥', '🎥', '🖼️'];
+const PIECE_ICONS = ['🖼️', '🎥', '🎬'];
 
 // ============================================================
 // STREAMING API CALL
@@ -608,7 +606,7 @@ function Step3_Pipeline({ data, onReset }) {
   const [activePieces, setActivePieces] = useState([1]);
   const [completedPieces, setCompletedPieces] = useState(new Set());
   const [roteiroTexts, setRoteiroTexts] = useState({});
-  const roteirosTimer = useTimer(completedPieces.size < 5);
+  const roteirosTimer = useTimer(completedPieces.size < 3);
 
   // --- Phase 2: Direction (Agent 04) ---
   const [phase, setPhase] = useState('roteiros'); // roteiros, direction, creatives, validation, done
@@ -627,6 +625,45 @@ function Step3_Pipeline({ data, onReset }) {
   const [valStatus, setValStatus] = useState('idle');
   const valTimer = useTimer(valStatus === 'running');
 
+  // --- Approval & Save ---
+  const [approvedPieces, setApprovedPieces] = useState({});
+  const [savingPiece, setSavingPiece] = useState(null);
+
+  const handleApprove = async (pieceNum, mediaItem) => {
+    const pieceTypes = { 1: 'estatico', 2: 'narrado', 3: 'apresentadora' };
+    setSavingPiece(pieceNum);
+    try {
+      const res = await fetch('/api/save-approved', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          fileUrl: mediaItem.url,
+          pieceNumber: pieceNum,
+          pieceType: pieceTypes[pieceNum],
+          projectName: projectName,
+          fileName: mediaItem.type === 'audio' ? 'narracao.mp3' : `peca-${pieceNum}-cena-${mediaItem.scene}.${mediaItem.type === 'video' ? 'mp4' : 'png'}`,
+        }),
+      });
+      const result = await res.json();
+      if (result.url) {
+        setApprovedPieces(prev => ({
+          ...prev,
+          [pieceNum]: [...(prev[pieceNum] || []), { ...mediaItem, savedUrl: result.url, savedAt: result.savedAt }],
+        }));
+      }
+    } catch (err) {
+      alert('Erro ao salvar: ' + err.message);
+    }
+    setSavingPiece(null);
+  };
+
+  const handleApproveAll = async (pieceNum) => {
+    const items = generatedImages.filter(i => i.url && i.piece === pieceNum);
+    for (const item of items) {
+      await handleApprove(pieceNum, item);
+    }
+  };
+
   // Collect roteiro texts from PieceCardWrappers
   const handlePieceComplete = useCallback((pieceNum, text) => {
     setRoteiroTexts(prev => ({ ...prev, [pieceNum]: text }));
@@ -636,11 +673,11 @@ function Step3_Pipeline({ data, onReset }) {
     if (status === 'approved' || status === 'error') {
       setCompletedPieces(prev => { const n = new Set(prev); n.add(pieceNum); return n; });
       const next = pieceNum + 1;
-      if (next <= 5) setActivePieces(prev => prev.includes(next) ? prev : [...prev, next]);
+      if (next <= 3) setActivePieces(prev => prev.includes(next) ? prev : [...prev, next]);
     }
   }, []);
 
-  const allRoteiros = completedPieces.size >= 5;
+  const allRoteiros = completedPieces.size >= 3;
 
   // Auto-start Agent 04 when roteiros done
   useEffect(() => {
@@ -650,153 +687,190 @@ function Step3_Pipeline({ data, onReset }) {
     }
   }, [allRoteiros]);
 
-  // --- Agent 04: Generate direction (with Drive references) ---
+  // --- Agent 04: Generate direction (1 peça por vez, sequencial) ---
   const runDirection = async () => {
     setDirStatus('running');
     try {
-      // Fetch reference images from both Drive folders
-      const DRIVE_FOLDERS = [
-        { id: '104mOv7hcjDRgkoc9A_I7hOO9x1VgwnpJ', label: 'OBRIGATÓRIO — Fachada' },
-        { id: '1ZyLJny6IkXWdo2TQKXGwMGmrUWYBVpdZ', label: 'OBRIGATÓRIO — Rooftop' },
-        { id: '1khMDmsNaks6S3tKmn308D3-d7oL1MSRd', label: 'OBRIGATÓRIO — Localização' },
-        { id: '15EKv4-VAy6CSfyA8vpKuvu_TUwq27ex4', label: 'REFERÊNCIA DE ESTILO (outro empreendimento — copiar formato, NÃO dados)' },
-      ];
+      const allPieces = [];
 
-      let driveImages = [];
-      for (const folder of DRIVE_FOLDERS) {
-        try {
-          const driveRes = await fetch('/api/list-drive', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ folderId: folder.id }),
-          });
-          const driveData = await driveRes.json();
-          if (driveData.files) {
-            driveImages = [...driveImages, ...driveData.files.map(f => ({ ...f, folder: folder.label }))];
-          }
-        } catch {}
+      // Gerar direção para cada peça sequencialmente (1, 2, 3)
+      for (let pn = 1; pn <= 3; pn++) {
+        setGenProgress(`Agente 04: gerando direção da peça ${pn}/3...`);
+        const res = await fetch('/api/generate-direction', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            briefing: data,
+            roteiro: roteiroTexts[pn] || '',
+            pieceNumber: pn,
+          }),
+        });
+        const result = await res.json();
+        if (!res.ok) throw new Error(result.error || `Erro no Agente 04 peça ${pn}`);
+        allPieces.push(result);
       }
 
-      const driveInfo = driveImages.length > 0
-        ? `\n\n# IMAGENS DE REFERÊNCIA DISPONÍVEIS NO DRIVE (${driveImages.length} imagens)\nUse estas como referência (image-to-image) sempre que possível:\n${driveImages.map(f => `- ${f.name} (${f.folder}) → ${f.url}`).join('\n')}`
-        : '\n\n# SEM IMAGENS DE REFERÊNCIA\nGere tudo do zero via text-to-image.';
-
-      const res = await fetch('/api/generate-direction', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ briefing: data, roteiros: roteiroTexts, driveImages: driveInfo }),
-      });
-      const result = await res.json();
-      if (!res.ok) throw new Error(result.error || 'Erro no Agente 04');
-      setDirection(result);
+      const fullDirection = { pieces: allPieces };
+      setDirection(fullDirection);
       setDirStatus('success');
       setPhase('creatives');
-      runCreatives(result);
+      runCreatives(fullDirection);
     } catch (err) {
       setDirStatus('error');
       setGenProgress('Erro: ' + err.message);
     }
   };
 
-  // --- Agent 05: Generate images ---
+  // --- Agent 05: Execute creatives (1 peça por vez, sequencial) ---
   const runCreatives = async (dir) => {
     setGenStatus('running');
     const pieces = dir.pieces || [];
     const allMedia = [];
-    const videoPieces = [3, 4]; // peças que precisam de vídeo
 
-    // --- FASE 1: GERAR IMAGENS (3 em paralelo) ---
-    const imageJobs = [];
     for (const piece of pieces) {
-      for (const scene of (piece.scenes || [])) {
-        for (const eng of ['flux', 'recraft']) {
-          const prompt = eng === 'flux' ? scene.imagePrompt : (scene.imagePromptRecraft || scene.imagePrompt);
-          if (!prompt) continue;
-          imageJobs.push({ piece: piece.pieceNumber, scene: scene.sceneNumber, eng, prompt, ref: scene.referenceImageUrl, refStrength: scene.referenceStrength, neg: scene.negativePrompt, format: scene.format || '9:16' });
-        }
-      }
-    }
+      const pn = piece.pieceNumber;
+      const pType = piece.type || '';
 
-    const BATCH_SIZE = 3;
-    let imgDone = 0;
-
-    for (let i = 0; i < imageJobs.length; i += BATCH_SIZE) {
-      const batch = imageJobs.slice(i, i + BATCH_SIZE);
-      setGenProgress(`Imagens ${imgDone + 1}-${Math.min(imgDone + batch.length, imageJobs.length)}/${imageJobs.length}`);
-
-      const results = await Promise.allSettled(batch.map(async (job) => {
-        const res = await fetch('/api/generate-image', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ prompt: job.prompt, engine: job.eng, format: job.format, referenceImageUrl: job.ref || null, referenceStrength: job.refStrength, negativePrompt: job.neg }),
-        });
-        const result = await res.json();
-        return { ...job, result };
-      }));
-
-      for (const r of results) {
-        imgDone++;
-        if (r.status === 'fulfilled' && r.value.result.url) {
-          allMedia.push({
-            piece: r.value.piece, scene: r.value.scene,
-            engine: r.value.eng, type: 'image', url: r.value.result.url, prompt: r.value.prompt,
-          });
-        } else {
-          const errMsg = r.status === 'rejected' ? r.reason?.message : r.value.result.error;
-          allMedia.push({ piece: r.value?.piece, scene: r.value?.scene, engine: r.value?.eng, type: 'image', error: errMsg });
+      // --- PEÇA 1: ESTÁTICO (0 chamadas de IA) ---
+      if (pn === 1 || pType.includes('estatico')) {
+        setGenProgress('Peça 1 — Estático: montando com imagem do Drive...');
+        for (const scene of (piece.scenes || [])) {
+          if (scene.driveImageUrl) {
+            allMedia.push({
+              piece: pn, scene: scene.sceneNumber,
+              engine: 'drive', type: 'image', url: scene.driveImageUrl,
+              prompt: 'Imagem real do Drive (localização)',
+            });
+          }
         }
         setGeneratedImages([...allMedia]);
+        continue;
       }
-    }
 
-    // --- FASE 2: GERAR VÍDEOS (peças 3 e 4) ---
-    // Pegar o frame-chave (imagem Flux) de cada cena pra animar
-    const videoEngines = ['kling', 'luma'];
-    const videoScenes = [];
-    for (const piece of pieces) {
-      if (!videoPieces.includes(piece.pieceNumber)) continue;
-      for (const scene of (piece.scenes || [])) {
-        const frameImg = allMedia.find(m =>
-          m.piece === piece.pieceNumber && m.scene === scene.sceneNumber &&
-          m.engine === 'flux' && m.type === 'image' && m.url
-        );
-        if (frameImg && scene.videoPrompt) {
-          videoScenes.push({ piece: piece.pieceNumber, scene, frameUrl: frameImg.url });
-        }
-      }
-    }
+      // --- PEÇA 2: NARRADO 15s (Kling + ElevenLabs) ---
+      if (pn === 2 || pType.includes('narrado')) {
+        // Gerar vídeos animados das cenas (Kling com imagem do Drive)
+        let sceneDone = 0;
+        const scenes = piece.scenes || [];
+        for (const scene of scenes) {
+          sceneDone++;
+          const imageUrl = scene.driveImageUrl;
+          const videoPrompt = scene.videoPrompt;
 
-    const vidTotal = videoScenes.length * videoEngines.length;
-    let vidDone = 0;
-
-    for (const vs of videoScenes) {
-      for (const eng of videoEngines) {
-        vidDone++;
-        const engName = eng === 'kling' ? 'Kling' : eng === 'luma' ? 'Luma Ray 2' : 'Minimax';
-        setGenProgress(`Vídeo ${vidDone}/${vidTotal} (${engName}) — Peça ${vs.piece}, Cena ${vs.scene.sceneNumber}`);
-
-        try {
-          const res = await fetch('/api/generate-video', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              prompt: vs.scene.videoPrompt,
-              engine: eng,
-              imageUrl: vs.frameUrl,
-              format: vs.scene.format || '9:16',
-            }),
-          });
-          const result = await res.json();
-          if (result.url) {
-            allMedia.push({
-              piece: vs.piece, scene: vs.scene.sceneNumber,
-              engine: eng, type: 'video', url: result.url, prompt: vs.scene.videoPrompt,
-            });
+          if (imageUrl && videoPrompt) {
+            setGenProgress(`Peça 2 — Narrado: animando cena ${sceneDone}/${scenes.length} (Kling)...`);
+            try {
+              const res = await fetch('/api/generate-video', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  prompt: videoPrompt,
+                  engine: scene.videoEngine || 'kling',
+                  imageUrl: imageUrl,
+                  format: '9:16',
+                }),
+              });
+              const result = await res.json();
+              if (result.url) {
+                allMedia.push({
+                  piece: pn, scene: scene.sceneNumber,
+                  engine: 'kling', type: 'video', url: result.url, prompt: videoPrompt,
+                });
+              }
+            } catch (err) {
+              allMedia.push({ piece: pn, scene: scene.sceneNumber, engine: 'kling', type: 'video', error: err.message });
+            }
             setGeneratedImages([...allMedia]);
           }
-        } catch (err) {
-          allMedia.push({ piece: vs.piece, scene: vs.scene.sceneNumber, engine: eng, type: 'video', error: err.message });
         }
+
+        // Gerar narração (ElevenLabs)
+        const narrationText = scenes.map(s => s.narrationText).filter(Boolean).join(' ');
+        if (narrationText) {
+          setGenProgress('Peça 2 — Narrado: gerando narração (voz Monica)...');
+          try {
+            const res = await fetch('/api/generate-audio', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ text: narrationText }),
+            });
+            const result = await res.json();
+            if (result.audio) {
+              allMedia.push({
+                piece: pn, scene: 0,
+                engine: 'elevenlabs', type: 'audio',
+                url: `data:audio/mp3;base64,${result.audio}`,
+                prompt: 'Narração voz Monica',
+              });
+              setGeneratedImages([...allMedia]);
+            }
+          } catch (err) {
+            allMedia.push({ piece: pn, scene: 0, engine: 'elevenlabs', type: 'audio', error: err.message });
+          }
+        }
+        continue;
+      }
+
+      // --- PEÇA 3: APRESENTADORA 30s (Veo 3 + Kling) ---
+      if (pn === 3 || pType.includes('apresentadora')) {
+        const scenes = piece.scenes || [];
+        let sceneDone = 0;
+        for (const scene of scenes) {
+          sceneDone++;
+          const engine = scene.videoEngine || (scene.driveImageUrl ? 'kling' : 'veo3');
+
+          if (engine === 'veo3' && scene.videoPrompt) {
+            // Cena da Monica (Veo 3 text-to-video)
+            setGenProgress(`Peça 3 — Apresentadora: gerando Monica cena ${sceneDone}/${scenes.length} (Veo 3)...`);
+            try {
+              const res = await fetch('/api/generate-video', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  prompt: scene.videoPrompt,
+                  engine: 'veo3',
+                  duration: '8s',
+                  generateAudio: scene.generateAudio ?? true,
+                }),
+              });
+              const result = await res.json();
+              if (result.url) {
+                allMedia.push({
+                  piece: pn, scene: scene.sceneNumber,
+                  engine: 'veo3', type: 'video', url: result.url, prompt: scene.videoPrompt,
+                });
+              }
+            } catch (err) {
+              allMedia.push({ piece: pn, scene: scene.sceneNumber, engine: 'veo3', type: 'video', error: err.message });
+            }
+          } else if (scene.driveImageUrl && scene.videoPrompt) {
+            // Cena do empreendimento (Kling com imagem do Drive)
+            setGenProgress(`Peça 3 — Apresentadora: animando cena ${sceneDone}/${scenes.length} (Kling)...`);
+            try {
+              const res = await fetch('/api/generate-video', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  prompt: scene.videoPrompt,
+                  engine: 'kling',
+                  imageUrl: scene.driveImageUrl,
+                  format: '9:16',
+                }),
+              });
+              const result = await res.json();
+              if (result.url) {
+                allMedia.push({
+                  piece: pn, scene: scene.sceneNumber,
+                  engine: 'kling', type: 'video', url: result.url, prompt: scene.videoPrompt,
+                });
+              }
+            } catch (err) {
+              allMedia.push({ piece: pn, scene: scene.sceneNumber, engine: 'kling', type: 'video', error: err.message });
+            }
+          }
+          setGeneratedImages([...allMedia]);
+        }
+        continue;
       }
     }
 
@@ -843,7 +917,7 @@ function Step3_Pipeline({ data, onReset }) {
       {/* Agent 02+03: Roteiros */}
       <h3 className="font-display font-bold text-sm text-gray-500 mb-3 uppercase tracking-wider">Agentes 02+03 — Roteiros</h3>
       <div className="space-y-4 mb-6">
-        {[1, 2, 3, 4, 5].map(n => (
+        {[1, 2, 3].map(n => (
           <PieceCardWrapper key={n} pieceNumber={n} briefing={data}
             active={activePieces.includes(n)} onStatusChange={handlePieceStatus}
             onComplete={handlePieceComplete} />
@@ -881,7 +955,7 @@ function Step3_Pipeline({ data, onReset }) {
                       <img src={img.url} alt={`P${img.piece} C${img.scene}`}
                         className="w-full aspect-[9/16] object-cover rounded-lg border border-gray-200 hover:border-sea-coral transition-colors" />
                       <div className="absolute bottom-0 left-0 right-0 bg-black/60 text-white text-[10px] px-2 py-1 rounded-b-lg">
-                        P{img.piece} C{img.scene} — {img.engine === 'flux' ? 'Flux Pro' : 'Recraft'}
+                        P{img.piece} C{img.scene} — {img.engine === 'drive' ? 'Drive' : img.engine}
                       </div>
                     </a>
                   ))}
@@ -895,7 +969,7 @@ function Step3_Pipeline({ data, onReset }) {
                         <div key={idx} className="relative">
                           <video src={vid.url} controls className="w-full rounded-lg border border-gray-200" />
                           <div className="mt-1 text-[10px] text-gray-500">
-                            P{vid.piece} C{vid.scene} — {vid.engine === 'kling' ? 'Kling' : vid.engine === 'luma' ? 'Luma Ray 2' : 'Minimax'}
+                            P{vid.piece} C{vid.scene} — {vid.engine === 'kling' ? 'Kling' : vid.engine === 'veo3' ? 'Veo 3 (Monica)' : vid.engine}
                           </div>
                         </div>
                       ))}
@@ -930,33 +1004,92 @@ function Step3_Pipeline({ data, onReset }) {
         </div>
       ) : null}
 
-      {/* Done */}
+      {/* Approval per piece */}
       {phase === 'done' && (
-        <div className="mt-6 bg-sea-dark rounded-xl p-6 text-white text-center fade-in">
-          <div className="text-4xl mb-3">🎉</div>
-          <h3 className="font-display font-bold text-xl mb-2">Pacote de criativos completo!</h3>
-          <p className="text-white/60 text-sm mb-2">{projectName}</p>
-          <div className="grid grid-cols-4 gap-3 max-w-lg mx-auto mb-4">
-            <div className="bg-white/10 rounded-lg p-3">
-              <p className="text-lg font-bold">5</p>
-              <p className="text-[10px] text-white/50">Roteiros</p>
+        <div className="mt-6 fade-in space-y-4">
+          <h3 className="font-display font-bold text-sm text-gray-500 mb-3 uppercase tracking-wider">Aprovação dos Entregáveis</h3>
+
+          {[1, 2, 3].map(pn => {
+            const pieceNames = { 1: 'Peça Estática', 2: 'Vídeo Narrado 15s', 3: 'Vídeo Apresentadora 30s' };
+            const pieceIcons = { 1: '🖼️', 2: '🎥', 3: '🎬' };
+            const items = generatedImages.filter(i => i.url && i.piece === pn);
+            const saved = approvedPieces[pn] || [];
+            const isSaving = savingPiece === pn;
+            const isApproved = saved.length > 0;
+
+            return (
+              <div key={pn} className={`rounded-xl border ${isApproved ? 'border-emerald-300 bg-emerald-50' : 'border-gray-200 bg-white'} p-4`}>
+                <div className="flex items-center justify-between mb-3">
+                  <div className="flex items-center gap-2">
+                    <span className="text-xl">{pieceIcons[pn]}</span>
+                    <span className="font-bold text-sm">{pieceNames[pn]}</span>
+                    {isApproved && <span className="text-xs bg-emerald-200 text-emerald-800 px-2 py-0.5 rounded-full">Aprovado</span>}
+                  </div>
+                  {!isApproved && items.length > 0 && (
+                    <button
+                      onClick={() => handleApproveAll(pn)}
+                      disabled={isSaving}
+                      className="bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white font-bold px-4 py-2 rounded-lg text-xs"
+                    >
+                      {isSaving ? 'Salvando...' : 'Aprovar e Salvar'}
+                    </button>
+                  )}
+                </div>
+
+                {/* Show items */}
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                  {items.map((item, idx) => (
+                    <div key={idx} className="relative">
+                      {item.type === 'video' ? (
+                        <video src={item.url} controls className="w-full rounded-lg border border-gray-200" />
+                      ) : item.type === 'audio' ? (
+                        <audio src={item.url} controls className="w-full" />
+                      ) : (
+                        <img src={item.url} alt="" className="w-full aspect-[9/16] object-cover rounded-lg border border-gray-200" />
+                      )}
+                      <div className="mt-1 text-[10px] text-gray-500">
+                        C{item.scene} — {item.engine}
+                      </div>
+                      {!isApproved && (
+                        <button
+                          onClick={() => handleApprove(pn, item)}
+                          disabled={isSaving}
+                          className="absolute top-1 right-1 bg-emerald-600 hover:bg-emerald-700 text-white text-[10px] px-2 py-1 rounded-md opacity-0 group-hover:opacity-100 hover:opacity-100"
+                          style={{opacity: 0.9}}
+                        >
+                          Aprovar
+                        </button>
+                      )}
+                    </div>
+                  ))}
+                </div>
+
+                {/* Show saved URLs */}
+                {saved.length > 0 && (
+                  <div className="mt-2 space-y-1">
+                    {saved.map((s, idx) => (
+                      <a key={idx} href={s.savedUrl} target="_blank" rel="noopener"
+                        className="block text-xs text-emerald-700 hover:underline truncate">
+                        Salvo: {s.savedUrl}
+                      </a>
+                    ))}
+                  </div>
+                )}
+              </div>
+            );
+          })}
+
+          {/* All approved */}
+          {Object.keys(approvedPieces).length === 3 && (
+            <div className="bg-sea-dark rounded-xl p-6 text-white text-center">
+              <div className="text-4xl mb-3">🎉</div>
+              <h3 className="font-display font-bold text-xl mb-2">Pacote completo e salvo!</h3>
+              <p className="text-white/60 text-sm mb-4">{projectName} — 3/3 peças aprovadas</p>
+              <button onClick={onReset} className="bg-sea-coral hover:bg-sea-coral/90 text-white font-bold px-6 py-2.5 rounded-lg text-sm">
+                Novo Briefing
+              </button>
             </div>
-            <div className="bg-white/10 rounded-lg p-3">
-              <p className="text-lg font-bold">{generatedImages.filter(i => i.url && i.type === 'image').length}</p>
-              <p className="text-[10px] text-white/50">Imagens</p>
-            </div>
-            <div className="bg-white/10 rounded-lg p-3">
-              <p className="text-lg font-bold">{generatedImages.filter(i => i.url && i.type === 'video').length}</p>
-              <p className="text-[10px] text-white/50">Vídeos</p>
-            </div>
-            <div className="bg-white/10 rounded-lg p-3">
-              <p className="text-lg font-bold">5</p>
-              <p className="text-[10px] text-white/50">IAs usadas</p>
-            </div>
-          </div>
-          <button onClick={onReset} className="bg-sea-coral hover:bg-sea-coral/90 text-white font-bold px-6 py-2.5 rounded-lg text-sm">
-            Novo Briefing
-          </button>
+          )}
         </div>
       )}
     </div>
