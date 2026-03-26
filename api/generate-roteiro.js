@@ -88,9 +88,17 @@ Regras:
 
 LEIA a seção "estrutura_criativos" do briefing antes de começar.
 
-SEM apresentadora — só visual + narração em off + lettering.
-As imagens serão fotos REAIS do Drive (fachada, rooftop, localização) animadas por IA.
-A narração será feita com a voz clonada da Monica via ElevenLabs. Idioma: PORTUGUÊS BRASILEIRO.
+# CONTEXTO TÉCNICO
+- SEM apresentadora — só visual + narração em off + lettering
+- São 9 clips animados: 3 fotos de FACHADA + 3 fotos de ROOFTOP + 3 fotos de LOCALIZAÇÃO
+- Cada BLOCO de 3 fotos dura 5 segundos (total: 3 blocos × 5s = 15s exatos)
+- As fotos são do Drive, animadas por IA (Kling) — movimentos cinematográficos
+- Narração: voz clonada da Monica (ElevenLabs), PORTUGUÊS BRASILEIRO
+
+# REGRA CRÍTICA DE TEMPO
+A narração TOTAL deve ter no MÁXIMO 35 palavras (em português).
+São ~2.5 palavras/segundo × 15 segundos = 37 palavras limite absoluto.
+Conte as palavras antes de entregar. Se passar de 35, CORTE.
 
 Formato EXATO:
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -98,38 +106,37 @@ VÍDEO NARRADO — 15s
 Empreendimento: [nome do projeto]
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-CENA 1:
-  Visual: [qual imagem do Drive — fachada, rooftop ou localização]
-  Movimento: [como animar — slow zoom in, pan right, tilt up, etc.]
-  Lettering: [texto na tela — máx 7 palavras]
-  Narração: [texto exato em português que a Monica narra em off]
+BLOCO 1 — FACHADA (0s a 5s):
+  Fotos: 3 fotos da fachada do empreendimento (cortes rápidos)
+  Lettering: [texto na tela — máx 5 palavras, gancho forte]
+  Narração: [~12 palavras em português — gancho + nome do empreendimento]
 
-CENA 2:
-  Visual: [...]
-  Movimento: [...]
-  Lettering: [...]
-  Narração: [...]
+BLOCO 2 — ROOFTOP (5s a 10s):
+  Fotos: 3 fotos do rooftop/área de lazer (cortes rápidos)
+  Lettering: [texto na tela — máx 5 palavras, dado financeiro destaque]
+  Narração: [~12 palavras em português — dado financeiro principal]
 
-CENA 3 (FINAL):
-  Visual: [...]
-  Movimento: [...]
-  Lettering: [CTA]
-  Narração: [narração final com CTA]
+BLOCO 3 — LOCALIZAÇÃO (10s a 15s):
+  Fotos: 3 fotos aéreas da localização (cortes rápidos)
+  Lettering: [texto na tela — máx 5 palavras, CTA direto]
+  Narração: [~11 palavras em português — CTA final]
+
+Contagem total de palavras da narração: [número]
 
 DOs incluídos: [listar]
 Pontos fortes incluídos: [listar]
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 Regras:
-- MÁXIMO 3 cenas (é 15 segundos!)
-- Cada cena especifica qual imagem do Drive usar
+- EXATAMENTE 3 blocos. Cada bloco = 5 segundos = 3 fotos com cortes rápidos
+- Narração TOTAL: MÁXIMO 35 PALAVRAS. Contar antes de entregar!
 - Narração em PORTUGUÊS BRASILEIRO, tom profissional e confiante
-- Gancho forte na cena 1, dados na cena 2, CTA na cena 3
-- Lettering: máximo 7 palavras por tela
+- Arco: Gancho (bloco 1) → Dados (bloco 2) → CTA (bloco 3)
+- Lettering: máximo 5 palavras por bloco (aparece sobre os 3 clips do bloco)
 - TODOS os pontos fortes obrigatórios devem aparecer
 - TODOS os DOs devem estar contemplados
 - Nenhum DON'T pode aparecer
-- Dados financeiros EXATOS`,
+- Dados financeiros EXATOS (nunca arredondar)`,
 
   3: `Gere o roteiro da PEÇA 3 — Vídeo Apresentadora (30s).
 
@@ -140,6 +147,22 @@ SEMPRE posicioná-la como dona/sócia fundadora. Fala natural, autoridade + prox
 O vídeo da Monica será gerado por IA, intercalado com cenas do empreendimento
 (fotos REAIS do Drive animadas). Idioma: PORTUGUÊS BRASILEIRO.
 
+# CONTEXTO VISUAL IMPORTANTE
+A foto da Monica é usada APENAS como referência de rosto. O vídeo será gerado com ela
+em um cenário que combine com o empreendimento. Como o empreendimento é próximo à praia,
+a Monica deve aparecer CAMINHANDO NA PRAIA, na areia, falando para a câmera de forma
+natural e descontraída. NÃO é pra ficar parada mexendo — é pra parecer que ela está
+gravando um conteúdo na praia perto do empreendimento.
+
+# REGRA CRÍTICA DE TEMPO
+A narração TOTAL (soma de TODAS as falas da Monica) deve ter no MÁXIMO 70 palavras.
+São ~2.3 palavras/segundo × 30 segundos = 69 palavras limite absoluto.
+Conte as palavras de TODAS as falas antes de entregar. Se passar de 70, CORTE.
+
+# ESTRUTURA FIXA — 5 CENAS (2 Monica + 3 Empreendimento)
+São EXATAMENTE 5 cenas. 2 da Monica (geradas via Veo3) intercaladas com 3 do
+empreendimento (animadas via Kling). Isso economiza custo de IA.
+
 Formato EXATO:
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 VÍDEO APRESENTADORA — 30s
@@ -147,37 +170,43 @@ Empreendimento: [nome do projeto]
 Apresentadora: Monica Medeiros — CCO e sócia fundadora da Seazone
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-CENA 1 — MONICA:
-  Monica fala: "[fala exata em português — como sócia fundadora]"
-  Lettering: [texto na tela]
+CENA 1 — MONICA INTRO (0s a 8s):
+  Cenário: Monica caminhando na praia/areia, falando para câmera
+  Monica fala: "[~20 palavras — gancho + se apresenta como sócia fundadora + nome do empreendimento]"
+  Lettering: [texto na tela — máx 7 palavras]
 
-CENA 2 — EMPREENDIMENTO:
-  Visual: [qual imagem do Drive — fachada, rooftop ou localização]
-  Movimento: [como animar]
-  Lettering: [dados/texto na tela]
+CENA 2 — FACHADA (8s a 13s):
+  Visual: fachada do empreendimento
+  Movimento: [tilt up cinematográfico, golden hour]
+  Lettering: [dado destaque — máx 7 palavras]
 
-CENA 3 — MONICA:
-  Monica fala: "[fala com dados financeiros integrados naturalmente]"
-  Lettering: [...]
+CENA 3 — ROOFTOP (13s a 18s):
+  Visual: rooftop/área de lazer
+  Movimento: [pan cinematográfico, vista para o mar]
+  Lettering: [dado financeiro — máx 7 palavras]
 
-CENA 4 — EMPREENDIMENTO:
-  Visual: [...]
-  Movimento: [...]
-  Lettering: [dados]
+CENA 4 — LOCALIZAÇÃO (18s a 23s):
+  Visual: vista aérea da localização
+  Movimento: [drone push forward, praia e mar]
+  Lettering: [localização/proximidade — máx 7 palavras]
 
-CENA 5 (FINAL) — MONICA:
-  Monica fala: "[CTA final]"
-  Lettering: [CTA]
+CENA 5 — MONICA CTA (23s a 30s):
+  Cenário: Monica na praia, sorrindo, tom entusiasmado
+  Monica fala: "[~15 palavras — dados financeiros + CTA final]"
+  Lettering: [CTA — máx 7 palavras]
+
+Contagem total de palavras das falas: [número — MÁXIMO 70]
 
 DOs incluídos: [listar]
 Pontos fortes incluídos: [listar]
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 Regras:
-- Entre 3 e 5 cenas
-- Arco narrativo: gancho → dados → CTA
-- Intercalar: cenas da Monica ↔ cenas do empreendimento
+- EXATAMENTE 5 cenas nesta ordem: Monica → Fachada → Rooftop → Localização → Monica
+- Falas da Monica TOTAL: MÁXIMO 70 PALAVRAS. Contar antes de entregar!
+- Arco narrativo: gancho (cena 1) → dados visuais (cenas 2-4) → CTA (cena 5)
 - Monica SEMPRE como sócia fundadora (não atriz)
+- Monica na PRAIA/AREIA — cenário natural, descontraído, perto do empreendimento
 - Fala NATURAL em português brasileiro, como dona do negócio
 - Dados financeiros integrados na fala (não parecer leitura)
 - CTA claro na cena final
@@ -185,7 +214,8 @@ Regras:
 - TODOS os pontos fortes obrigatórios devem aparecer
 - TODOS os DOs devem estar contemplados
 - Nenhum DON'T pode aparecer
-- Dados financeiros EXATOS`,
+- Dados financeiros EXATOS
+- A narração cobre os 30s inteiros (falas da Monica passam por cima das cenas do empreendimento também)`,
 };
 
 module.exports = async function handler(req, res) {

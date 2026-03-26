@@ -25,9 +25,10 @@ Roteiro aprovado → Estático (aprovar) → Narrado (aprovar) → Apresentadora
 
 ### REGRA 4: MÁXIMO DE CHAMADAS DE API (por versão)
 - Estático: **1 chamada** (GPT-5 Image via OpenRouter)
-- Narrado: **~4 chamadas** (3 Kling + 1 ElevenLabs + 1 Creatomate)
-- Apresentadora: **~7 chamadas** (3 Veo 3 + 3 Kling + 1 ElevenLabs + 1 Creatomate)
-- **x2 versões de cada = ~24 chamadas total no pacote completo**
+- Narrado: **~4 chamadas** (3 Kling + 1 ElevenLabs + 1 Creatomate) — em paralelo
+- Apresentadora: **~6 chamadas** (2 Veo 3 + 3 Kling + 1 ElevenLabs + 1 Creatomate) — em paralelo
+- **x1 versão de vídeo = ~10-12 chamadas total no pacote completo**
+- Veo3: usar duration "8s" (melhor custo-benefício, Creatomate recorta)
 
 ### REGRA 5: IDIOMA = PORTUGUÊS DO BRASIL. SEMPRE.
 - Narração, falas da Monica, textos: TUDO em português brasileiro

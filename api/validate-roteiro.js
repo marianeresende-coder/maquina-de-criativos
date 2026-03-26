@@ -38,9 +38,10 @@ Sua tarefa é validar UM roteiro contra o briefing original. Seja RIGOROSO.
 - Tom de autoridade (não atriz)
 - Falas naturais em português brasileiro
 
-[H] DURAÇÃO
-- Peça 2 (narrado 15s): máximo 3 cenas
-- Peça 3 (apresentadora 30s): entre 3 e 5 cenas
+[H] DURAÇÃO E CONTAGEM DE PALAVRAS
+- Peça 2 (narrado 15s): EXATAMENTE 3 blocos, narração MÁXIMO 35 palavras
+- Peça 3 (apresentadora 30s): EXATAMENTE 5 cenas (2 Monica + 3 empreendimento), falas da Monica MÁXIMO 70 palavras total
+- Se a contagem de palavras ultrapassar o limite → REPROVAR e indicar quantas palavras há
 
 # FORMATO DE RESPOSTA — JSON válido:
 

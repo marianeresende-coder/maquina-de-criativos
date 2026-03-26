@@ -647,6 +647,21 @@ function Step3_Pipeline({ data, onReset }) {
     localizacao: 'https://lh3.googleusercontent.com/d/18aKptRoxehM5X-6tH0kkSiRcj3GBn1qC=s1920',
     monica: 'https://lh3.googleusercontent.com/d/1fnk4XbJ3vtkrrM5f0RAbTMSTFdOatsC9=s1920',
     refEstatico: 'https://lh3.googleusercontent.com/d/13G7xGya7gVAfP_EVTdOxQKoM5TvAU230=s1920',
+    fachadaAll: [
+      'https://lh3.googleusercontent.com/d/1gr6pI4ElrZK0gM4pJi-QgHqlVc91-0Nn=s1920',
+      'https://lh3.googleusercontent.com/d/13l4IGjbNVaUG8pgH49qNJroOw_ieT15T=s1920',
+      'https://lh3.googleusercontent.com/d/1ixgzmO-PncCo115PB101ZkaAJJdryNtL=s1920',
+    ],
+    rooftopAll: [
+      'https://lh3.googleusercontent.com/d/1rkssZ7grxxozxe8xlKN0LVc0hw4p2vl5=s1920',
+      'https://lh3.googleusercontent.com/d/1R37-0nwHPoBy52lRpk90LqoHaWGhu-oQ=s1920',
+      'https://lh3.googleusercontent.com/d/14IYGS7jxUk5RwEXt0u_EArGSR8cU2Zh0=s1920',
+    ],
+    localizacaoAll: [
+      'https://lh3.googleusercontent.com/d/13e96WR2Bs95nz8-7K288DFDxPdTcKRp0=s1920',
+      'https://lh3.googleusercontent.com/d/1K1SO4zdg4emid4QVQXsOIHdoVzxs9Rad=s1920',
+      'https://lh3.googleusercontent.com/d/176jyu1dGizph1svsLrhYz5dobYtfy_6Y=s1920',
+    ],
   };
 
   // --- Aprovar uma versão ---
@@ -806,31 +821,42 @@ ABSOLUTE RULES:
           }
 
         } else if (pn === 2) {
-          // === NARRADO 15s (Kling + ElevenLabs + Creatomate) ===
+          // === NARRADO 15s (9 clips Kling + ElevenLabs + Creatomate) ===
           const roteiro = roteiroTexts[2] || '';
           const letteringMatches = roteiro.match(/Lettering:\s*(.+)/g) || [];
           const letterings = letteringMatches.map(l => l.replace(/Lettering:\s*/, '').trim());
           const narracaoMatches = roteiro.match(/Narra[cç][aã]o:\s*(.+)/g) || [];
           const fullNarration = narracaoMatches.map(n => n.replace(/Narra[cç][aã]o:\s*/, '').trim()).join(' ') || 'Investimento inteligente no litoral de Florianopolis.';
 
+          // 9 clips: 3 por categoria, cortes rapidos dentro de cada bloco de 5s
           const CENAS = [
-            { name: 'Fachada', url: DRIVE.fachada, prompt: 'Slow cinematic tilt up modern building, golden hour, premium architecture' },
-            { name: 'Rooftop', url: DRIVE.rooftop, prompt: 'Gentle pan luxury rooftop pool, golden hour, ocean view, resort' },
-            { name: 'Localizacao', url: DRIVE.localizacao, prompt: 'Aerial push forward Brazilian coast, turquoise ocean, golden hour' },
+            // BLOCO 1 — Fachada (0-5s): 2s + 1.5s + 1.5s
+            { name: 'Fachada 1', url: DRIVE.fachadaAll[0], prompt: 'Slow cinematic tilt up modern building facade, golden hour, premium architecture', clipDuration: 2, bloco: 0 },
+            { name: 'Fachada 2', url: DRIVE.fachadaAll[1], prompt: 'Slow dolly forward modern building entrance, warm sunlight, luxury details', clipDuration: 1.5, bloco: 0 },
+            { name: 'Fachada 3', url: DRIVE.fachadaAll[2], prompt: 'Gentle pan across modern building exterior, golden hour, clean lines', clipDuration: 1.5, bloco: 0 },
+            // BLOCO 2 — Rooftop (5-10s): 2s + 1.5s + 1.5s
+            { name: 'Rooftop 1', url: DRIVE.rooftopAll[0], prompt: 'Gentle pan luxury rooftop infinity pool, golden hour, ocean panorama', clipDuration: 2, bloco: 1 },
+            { name: 'Rooftop 2', url: DRIVE.rooftopAll[1], prompt: 'Slow zoom in rooftop lounge area, sunset light, premium resort feel', clipDuration: 1.5, bloco: 1 },
+            { name: 'Rooftop 3', url: DRIVE.rooftopAll[2], prompt: 'Slow tilt down from sky to infinity pool edge, ocean horizon, golden hour', clipDuration: 1.5, bloco: 1 },
+            // BLOCO 3 — Localizacao (10-15s): 2s + 1.5s + 1.5s
+            { name: 'Localizacao 1', url: DRIVE.localizacaoAll[0], prompt: 'Aerial push forward Brazilian coastline, turquoise ocean, golden hour', clipDuration: 2, bloco: 2 },
+            { name: 'Localizacao 2', url: DRIVE.localizacaoAll[1], prompt: 'Aerial slow orbit beach and coastline, paradise, warm tropical tones', clipDuration: 1.5, bloco: 2 },
+            { name: 'Localizacao 3', url: DRIVE.localizacaoAll[2], prompt: 'Aerial pull back revealing beautiful beach and coastal city, golden hour', clipDuration: 1.5, bloco: 2 },
           ];
 
-          // Gerar 3 clips via Kling
-          const clips = [];
-          for (let i = 0; i < CENAS.length; i++) {
-            setGenProgress(`Narrado v${v} — ${CENAS[i].name} (${i + 1}/3)...`);
+          // Gerar 9 clips via Kling EM PARALELO
+          setGenProgress(`Narrado v${v} — gerando 9 clips em paralelo...`);
+          const clipPromises = CENAS.map(async (cena) => {
             try {
               const res = await fetch('/api/generate-video', { method: 'POST', headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ prompt: CENAS[i].prompt, engine: 'kling', imageUrl: CENAS[i].url, format: '9:16' }) });
+                body: JSON.stringify({ prompt: cena.prompt, engine: 'kling', imageUrl: cena.url, format: '9:16' }) });
               const r = await res.json();
-              if (r.url) clips.push({ url: r.url, lettering: letterings[i] || '', duration: 5 });
-              else errs.push(`v${v} ${CENAS[i].name}: ${r.error || 'Sem URL'}`);
-            } catch (e) { errs.push(`v${v} ${CENAS[i].name}: ${e.message}`); }
-          }
+              if (r.url) return { url: r.url, lettering: letterings[cena.bloco] || '', duration: cena.clipDuration };
+              else { errs.push(`v${v} ${cena.name}: ${r.error || 'Sem URL'}`); return null; }
+            } catch (e) { errs.push(`v${v} ${cena.name}: ${e.message}`); return null; }
+          });
+          const clipResults = await Promise.all(clipPromises);
+          const clips = clipResults.filter(Boolean);
 
           // Narracao ElevenLabs
           let audioUrl = null;
@@ -844,7 +870,7 @@ ABSOLUTE RULES:
 
           // Montar via Creatomate (com polling no frontend)
           if (clips.length > 0) {
-            setGenProgress(`Narrado v${v} — enviando para montagem...`);
+            setGenProgress(`Narrado v${v} — montando video final (${clips.length} clips)...`);
             try {
               const res = await fetch('/api/compose-video', { method: 'POST', headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ clips, audioUrl, duration: 15, type: 'narrado' }) });
@@ -852,7 +878,6 @@ ABSOLUTE RULES:
               if (r.url) {
                 vers.push({ url: r.url, type: 'video', engine: 'creatomate', version: v });
               } else if (r.renderId) {
-                // Polling no frontend
                 setGenProgress(`Narrado v${v} — montando video (pode levar alguns minutos)...`);
                 const videoUrl = await pollCreatomateRender(r.renderId, (msg) => setGenProgress(`Narrado v${v} — ${msg}`));
                 if (videoUrl) vers.push({ url: videoUrl, type: 'video', engine: 'creatomate', version: v });
@@ -865,34 +890,49 @@ ABSOLUTE RULES:
 
         } else if (pn === 3) {
           // === APRESENTADORA 30s (Veo3 + Kling + ElevenLabs + Creatomate) ===
+          // 5 cenas: Monica intro(8s) → Fachada(5s) → Rooftop(5s) → Localização(5s) → Monica CTA(7s)
+          // Apenas 2 chamadas Veo3 (em vez de 3) = economia de ~$3 por geração
           const roteiro = roteiroTexts[3] || '';
           const falas = (roteiro.match(/Monica fala:\s*"([^"]+)"/g) || []).map(f => f.replace(/Monica fala:\s*"/, '').replace(/"$/, ''));
           const letteringMatches = roteiro.match(/Lettering:\s*(.+)/g) || [];
           const letterings = letteringMatches.map(l => l.replace(/Lettering:\s*/, '').trim());
           const fullNarration = falas.join(' ') || 'Eu sou a Monica, socia fundadora da Seazone.';
 
-          // 5 cenas: Monica(6s) > Fachada(5s) > Monica(6s) > Rooftop(5s) > Localizacao(5s) > Monica CTA(3s)
-          const CENAS = [
-            { name: 'Monica 1', engine: 'veo3', url: DRIVE.monica, prompt: `Brazilian woman brown hair speaking to camera, confident, golden hour, Brazilian Portuguese: "${falas[0] || 'Oi, eu sou a Monica, socia fundadora da Seazone.'}"` },
-            { name: 'Fachada', engine: 'kling', url: DRIVE.fachada, prompt: 'Slow tilt up modern building, golden hour, premium' },
-            { name: 'Monica 2', engine: 'veo3', url: DRIVE.monica, prompt: `Brazilian woman speaking to camera, warm tone, Brazilian Portuguese: "${falas[1] || 'Esse empreendimento entrega resultados reais.'}"` },
-            { name: 'Rooftop', engine: 'kling', url: DRIVE.rooftop, prompt: 'Pan luxury rooftop pool, ocean view, golden hour' },
-            { name: 'Localizacao', engine: 'kling', url: DRIVE.localizacao, prompt: 'Aerial Brazilian coast, turquoise ocean, golden hour' },
-            { name: 'Monica CTA', engine: 'veo3', url: DRIVE.monica, prompt: `Brazilian woman speaking with enthusiasm, Brazilian Portuguese: "${falas[2] || falas[falas.length - 1] || 'Garanta sua unidade.'}"` },
+          // Foto da Monica = referência de ROSTO. O prompt descreve ela na praia.
+          const MONICA_PHOTOS = [
+            DRIVE.monica,
+            'https://lh3.googleusercontent.com/d/1fiiABMSD7pmkS5OfxazrgOu7LZuj2E9W=s1920',
           ];
 
-          const clips = [];
-          for (let i = 0; i < CENAS.length; i++) {
-            setGenProgress(`Apresentadora v${v} — ${CENAS[i].name} (${i + 1}/6)...`);
+          const CENAS = [
+            { name: 'Monica Intro', engine: 'veo3', url: MONICA_PHOTOS[0], clipDuration: 8,
+              prompt: `Brazilian woman with brown hair walking on the beach barefoot on the sand, speaking naturally to camera, confident and approachable, golden hour warm light, ocean waves in background, wearing casual elegant outfit, speaking in Brazilian Portuguese: "${falas[0] || 'Oi, eu sou a Monica, socia fundadora da Seazone.'}" — cinematic, shallow depth of field, 9:16 vertical` },
+            { name: 'Fachada', engine: 'kling', url: DRIVE.fachada, clipDuration: 5,
+              prompt: 'Slow cinematic tilt up modern building facade, golden hour, premium architecture, warm light' },
+            { name: 'Rooftop', engine: 'kling', url: DRIVE.rooftop, clipDuration: 5,
+              prompt: 'Gentle pan luxury rooftop infinity pool, ocean panorama view, golden hour, resort feel' },
+            { name: 'Localizacao', engine: 'kling', url: DRIVE.localizacao, clipDuration: 5,
+              prompt: 'Aerial push forward Brazilian coastline, turquoise ocean, white sand beach, golden hour' },
+            { name: 'Monica CTA', engine: 'veo3', url: MONICA_PHOTOS[1], clipDuration: 7,
+              prompt: `Brazilian woman on the beach smiling, speaking with enthusiasm to camera, warm golden hour, ocean behind, natural and inviting tone, speaking in Brazilian Portuguese: "${falas[falas.length - 1] || falas[1] || 'Garanta sua unidade.'}" — cinematic, 9:16 vertical` },
+          ];
+
+          // Gerar TODOS os clips em paralelo (Veo3 + Kling ao mesmo tempo)
+          const clips = new Array(CENAS.length).fill(null);
+          setGenProgress(`Apresentadora v${v} — gerando 2 clips Monica + 3 cenas em paralelo...`);
+
+          const allPromises = CENAS.map(async (cena, i) => {
             try {
-              const body = { prompt: CENAS[i].prompt, engine: CENAS[i].engine, imageUrl: CENAS[i].url, format: '9:16' };
-              if (CENAS[i].engine === 'veo3') { body.duration = '6s'; body.generateAudio = false; }
+              const body = { prompt: cena.prompt, engine: cena.engine, imageUrl: cena.url, format: '9:16' };
+              if (cena.engine === 'veo3') { body.duration = '8s'; body.generateAudio = false; }
               const res = await fetch('/api/generate-video', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
               const r = await res.json();
-              if (r.url) clips.push({ url: r.url, lettering: letterings[i] || '', duration: 5 });
-              else errs.push(`v${v} ${CENAS[i].name}: ${r.error || 'Sem URL'}`);
-            } catch (e) { errs.push(`v${v} ${CENAS[i].name}: ${e.message}`); }
-          }
+              if (r.url) clips[i] = { url: r.url, lettering: letterings[i] || '', duration: cena.clipDuration };
+              else errs.push(`v${v} ${cena.name}: ${r.error || 'Sem URL'}`);
+            } catch (e) { errs.push(`v${v} ${cena.name}: ${e.message}`); }
+          });
+          await Promise.all(allPromises);
+          const validClips = clips.filter(Boolean);
 
           // Narracao ElevenLabs
           let audioUrl = null;
@@ -905,11 +945,11 @@ ABSOLUTE RULES:
           } catch (e) { errs.push(`v${v} audio: ${e.message}`); }
 
           // Montar via Creatomate (com polling no frontend)
-          if (clips.length > 0) {
-            setGenProgress(`Apresentadora v${v} — enviando para montagem...`);
+          if (validClips.length > 0) {
+            setGenProgress(`Apresentadora v${v} — montando video final (${validClips.length} clips)...`);
             try {
               const res = await fetch('/api/compose-video', { method: 'POST', headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ clips, audioUrl, duration: 30, type: 'apresentadora' }) });
+                body: JSON.stringify({ clips: validClips, audioUrl, duration: 30, type: 'apresentadora' }) });
               const r = await res.json();
               if (r.url) {
                 vers.push({ url: r.url, type: 'video', engine: 'creatomate', version: v });
