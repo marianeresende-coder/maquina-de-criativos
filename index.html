@@ -1064,20 +1064,18 @@ ABSOLUTE RULES:
           // Montar via Creatomate (com polling no frontend)
           if (validClips.length > 0) {
             setGenProgress(`Apresentadora v${v} — montando video final (${validClips.length} clips)...`);
-            const compResult = await safeFetchOnce('/api/compose-video', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+            const r = await safeFetchOnce('/api/compose-video', { method: 'POST', headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({ clips: validClips, audioUrl, duration: 30, type: 'apresentadora' }) });
-            const r = compResult;
-              if (r.url) {
-                vers.push({ url: r.url, type: 'video', engine: 'creatomate', version: v });
-              } else if (r.renderId) {
-                setGenProgress(`Apresentadora v${v} — montando video (pode levar alguns minutos)...`);
-                const videoUrl = await pollCreatomateRender(r.renderId, (msg) => setGenProgress(`Apresentadora v${v} — ${msg}`));
-                if (videoUrl) vers.push({ url: videoUrl, type: 'video', engine: 'creatomate', version: v });
-                else errs.push(`v${v} montagem: render falhou`);
-              } else {
-                errs.push(`v${v} montagem: ${r.error || 'Sem URL e sem renderId'}`);
-              }
-            } catch (e) { errs.push(`v${v} montagem: ${e.message}`); }
+            if (r.url) {
+              vers.push({ url: r.url, type: 'video', engine: 'creatomate', version: v });
+            } else if (r.renderId) {
+              setGenProgress(`Apresentadora v${v} — montando video (pode levar alguns minutos)...`);
+              const videoUrl = await pollCreatomateRender(r.renderId, (msg) => setGenProgress(`Apresentadora v${v} — ${msg}`));
+              if (videoUrl) vers.push({ url: videoUrl, type: 'video', engine: 'creatomate', version: v });
+              else errs.push(`v${v} montagem: render falhou`);
+            } else {
+              errs.push(`v${v} montagem: ${r.error || 'Sem URL e sem renderId'}`);
+            }
           }
         }
       } catch (err) { errs.push(`v${v}: ${err.message}`); }
