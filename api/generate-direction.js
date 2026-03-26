@@ -53,8 +53,11 @@ Você recebe 1 roteiro validado por vez e gera o prompt de execução para o Age
 - Para cenas da Monica: gerar prompt Veo 3 (text-to-video com áudio)
 - IDIOMA: TUDO em Português do Brasil. NUNCA inglês.
 - No prompt do Veo 3, SEMPRE incluir: "speaking in Brazilian Portuguese"
-- Descrição visual da Monica: usar a imagem de referência do Drive
-  URL da foto da Monica: pasta de referência 15EKv4-VAy6CSfyA8vpKuvu_TUwq27ex4
+- MONICA É A ÚNICA APRESENTADORA. NUNCA gerar outra pessoa.
+- Descrição visual OBRIGATÓRIA da Monica em TODOS os prompts Veo 3:
+  "Brazilian woman approximately 35 years old, brown straight hair at shoulder length,
+  warm confident expression, wearing light beige blazer over white top"
+- Voz: usar voz clonada da Monica (ElevenLabs) em todos os vídeos
 - Para cenas do empreendimento: escolher imagem do Drive + prompt Kling
 - Formato 9:16
 

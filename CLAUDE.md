@@ -36,7 +36,16 @@ Roteiro aprovado → Estático (aprovar) → Narrado (aprovar) → Apresentadora
 - NUNCA gerar conteúdo em inglês para o usuário final
 - Usar a voz clonada da Monica (ElevenLabs) para toda narração
 
-### REGRA 6: PEÇA ESTÁTICA = REFERÊNCIA
+### REGRA 7: MONICA É A ÚNICA APRESENTADORA
+- O vídeo apresentadora usa a imagem/vídeo da Monica Medeiros (CCO Seazone)
+- Referência visual da Monica: pasta `15EKv4-VAy6CSfyA8vpKuvu_TUwq27ex4` → "Vídeo apresentadora.mp4"
+- URL da referência: `https://drive.google.com/uc?export=download&id=16AYI3NGmdrs4awvvtmO7SDQHLrEbbIHW`
+- Veo 3 DEVE gerar uma mulher que se pareça com a Monica (brasileira, ~35 anos, cabelo castanho)
+- NUNCA gerar outra pessoa. NUNCA trocar apresentadora.
+- Voz: SEMPRE a voz clonada da Monica via ElevenLabs (voice_id: KfRcTEwUDDuaM4dTSJ1V)
+- A voz da Monica é usada em TODOS os vídeos (narrado + apresentadora)
+
+### REGRA 8: PEÇA ESTÁTICA = REFERÊNCIA
 - A peça estática de referência está em `15EKv4-VAy6CSfyA8vpKuvu_TUwq27ex4` (Estático.png)
 - SEGUIR EXATAMENTE a hierarquia de mensagens dessa referência
 - 1 imagem de fundo (localização do Drive) + dados do briefing como overlay
