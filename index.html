@@ -810,51 +810,66 @@ function Step3_Pipeline({ data, onReset }) {
 
       // --- PEÇA 2: NARRADO 15s (Kling + ElevenLabs) ---
       if (pn === 2 || pType.includes('narrado')) {
-        // Imagens do Drive como fallback caso o diretor não inclua driveImageUrl
-        const DRIVE_FALLBACK = [
-          'https://lh3.googleusercontent.com/d/1gr6pI4ElrZK0gM4pJi-QgHqlVc91-0Nn=s1920', // Fachada 1
-          'https://lh3.googleusercontent.com/d/1rkssZ7grxxozxe8xlKN0LVc0hw4p2vl5=s1920', // Rooftop 1
-          'https://lh3.googleusercontent.com/d/13e96WR2Bs95nz8-7K288DFDxPdTcKRp0=s1920', // Localização 1
+        // HARDCODED: 3 cenas com imagens do Drive — não depende do diretor criativo
+        const NARRADO_SCENES = [
+          {
+            name: 'Fachada',
+            imageUrl: 'https://lh3.googleusercontent.com/d/1gr6pI4ElrZK0gM4pJi-QgHqlVc91-0Nn=s1920',
+            prompt: 'Slow cinematic tilt up revealing modern residential building facade, golden hour warm sunlight, clean architectural lines, premium real estate, photorealistic',
+          },
+          {
+            name: 'Rooftop',
+            imageUrl: 'https://lh3.googleusercontent.com/d/1rkssZ7grxxozxe8xlKN0LVc0hw4p2vl5=s1920',
+            prompt: 'Gentle camera pan across luxury rooftop infinity pool, warm golden hour light reflecting on water, ocean view in background, premium resort atmosphere',
+          },
+          {
+            name: 'Localização',
+            imageUrl: 'https://lh3.googleusercontent.com/d/13e96WR2Bs95nz8-7K288DFDxPdTcKRp0=s1920',
+            prompt: 'Smooth aerial drone push forward over beautiful Brazilian coastal landscape, turquoise ocean, white sand beach, tropical vegetation, golden hour',
+          },
         ];
 
-        // Gerar vídeos animados das cenas (Kling com imagem do Drive)
-        let sceneDone = 0;
-        const scenes = piece.scenes || [];
-        for (const scene of scenes) {
-          sceneDone++;
-          // Usar driveImageUrl do diretor, ou fallback na ordem fachada→rooftop→localização
-          const imageUrl = scene.driveImageUrl || DRIVE_FALLBACK[(sceneDone - 1) % DRIVE_FALLBACK.length];
-          const videoPrompt = scene.videoPrompt || scene.description || 'Slow cinematic zoom in, golden hour lighting, premium real estate';
+        // Se o diretor criativo mandou cenas com URLs, usar. Senão, usar hardcoded.
+        const dirScenes = (piece.scenes || []).filter(s => s.driveImageUrl && s.videoPrompt);
+        const scenesToUse = dirScenes.length >= 2 ? dirScenes.map((s, i) => ({
+          name: `Cena ${i + 1}`,
+          imageUrl: s.driveImageUrl,
+          prompt: s.videoPrompt,
+        })) : NARRADO_SCENES;
 
-          setGenProgress(`Peça 2 — Narrado: animando cena ${sceneDone}/${scenes.length} (Kling)...`);
+        // Gerar vídeos animados das cenas
+        for (let i = 0; i < scenesToUse.length; i++) {
+          const scene = scenesToUse[i];
+          setGenProgress(`Peça 2 — Narrado: animando ${scene.name} (${i + 1}/${scenesToUse.length})...`);
           try {
             const res = await fetch('/api/generate-video', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({
-                prompt: videoPrompt,
-                engine: scene.videoEngine || 'kling',
-                imageUrl: imageUrl,
+                prompt: scene.prompt,
+                engine: 'kling',
+                imageUrl: scene.imageUrl,
                 format: '9:16',
               }),
             });
             const result = await res.json();
             if (result.url) {
               allMedia.push({
-                piece: pn, scene: scene.sceneNumber || sceneDone,
-                engine: 'kling', type: 'video', url: result.url, prompt: videoPrompt,
+                piece: pn, scene: i + 1,
+                engine: 'kling', type: 'video', url: result.url, prompt: scene.prompt,
               });
             } else {
-              allMedia.push({ piece: pn, scene: scene.sceneNumber || sceneDone, engine: 'kling', type: 'video', error: result.error || 'Sem URL no resultado' });
+              allMedia.push({ piece: pn, scene: i + 1, engine: 'kling', type: 'video', error: result.error || 'Sem URL' });
             }
           } catch (err) {
-            allMedia.push({ piece: pn, scene: scene.sceneNumber || sceneDone, engine: 'kling', type: 'video', error: err.message });
+            allMedia.push({ piece: pn, scene: i + 1, engine: 'kling', type: 'video', error: err.message });
           }
           setGeneratedImages([...allMedia]);
         }
 
-        // Gerar narração (ElevenLabs)
-        const narrationText = scenes.map(s => s.narrationText || s.lettering || '').filter(Boolean).join(' ');
+        // Gerar narração (ElevenLabs) — pegar texto do roteiro
+        const dirNarration = (piece.scenes || []).map(s => s.narrationText || s.lettering || '').filter(Boolean).join(' ');
+        const narrationText = dirNarration || (roteiroTexts[2] || '').replace(/[━─═]/g, '').replace(/CENA \d+:|Visual:|Movimento:|Lettering:|Narração:|VÍDEO NARRADO.*/g, ' ').trim().substring(0, 500);
         if (narrationText) {
           setGenProgress('Peça 2 — Narrado: gerando narração (voz Monica)...');
           try {
@@ -882,63 +897,68 @@ function Step3_Pipeline({ data, onReset }) {
 
       // --- PEÇA 3: APRESENTADORA 30s (Veo 3 + Kling) ---
       if (pn === 3 || pType.includes('apresentadora')) {
-        const scenes = piece.scenes || [];
-        let sceneDone = 0;
-        for (const scene of scenes) {
-          sceneDone++;
-          const engine = scene.videoEngine || (scene.driveImageUrl ? 'kling' : 'veo3');
+        // HARDCODED: Monica (Veo 3) + cenas empreendimento (Kling)
+        const MONICA_PHOTO = 'https://lh3.googleusercontent.com/d/1fnk4XbJ3vtkrrM5f0RAbTMSTFdOatsC9=s1920';
 
-          if (engine === 'veo3' && scene.videoPrompt) {
-            // Cena da Monica (Veo 3 image-to-video com foto REAL)
-            // Usar foto da Monica do Drive — priorizar a que o diretor criativo escolheu
-            const monicaPhoto = scene.driveImageUrl || 'https://lh3.googleusercontent.com/d/1fnk4XbJ3vtkrrM5f0RAbTMSTFdOatsC9=s1920';
-            setGenProgress(`Peça 3 — Apresentadora: gerando Monica cena ${sceneDone}/${scenes.length} (Veo 3)...`);
-            try {
-              const res = await fetch('/api/generate-video', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                  prompt: scene.videoPrompt,
-                  engine: 'veo3',
-                  imageUrl: monicaPhoto,
-                  duration: '8s',
-                  generateAudio: scene.generateAudio ?? true,
-                }),
-              });
-              const result = await res.json();
-              if (result.url) {
-                allMedia.push({
-                  piece: pn, scene: scene.sceneNumber,
-                  engine: 'veo3', type: 'video', url: result.url, prompt: scene.videoPrompt,
-                });
-              }
-            } catch (err) {
-              allMedia.push({ piece: pn, scene: scene.sceneNumber, engine: 'veo3', type: 'video', error: err.message });
+        // Extrair falas da Monica do roteiro
+        const roteiroText = roteiroTexts[3] || '';
+        const falas = roteiroText.match(/Monica fala:\s*"([^"]+)"/g) || [];
+        const falaTexts = falas.map(f => f.replace(/Monica fala:\s*"/, '').replace(/"$/, ''));
+        const monicaFala = falaTexts[0] || 'Oi, eu sou a Monica, sócia fundadora da Seazone. Esse empreendimento entrega resultados reais.';
+
+        const APRESENTADORA_SCENES = [
+          {
+            name: 'Monica falando',
+            engine: 'veo3',
+            imageUrl: MONICA_PHOTO,
+            prompt: `Medium shot of a Brazilian woman with brown hair speaking directly to camera, warm confident professional tone, modern clean background, golden hour side lighting, speaking in Brazilian Portuguese, she says: "${monicaFala}"`,
+            duration: '8s',
+            generateAudio: true,
+          },
+          {
+            name: 'Fachada animada',
+            engine: 'kling',
+            imageUrl: 'https://lh3.googleusercontent.com/d/1gr6pI4ElrZK0gM4pJi-QgHqlVc91-0Nn=s1920',
+            prompt: 'Slow cinematic tilt up of modern residential building, golden hour warm light, premium architecture, clean lines',
+          },
+          {
+            name: 'Rooftop animado',
+            engine: 'kling',
+            imageUrl: 'https://lh3.googleusercontent.com/d/1rkssZ7grxxozxe8xlKN0LVc0hw4p2vl5=s1920',
+            prompt: 'Gentle pan across luxury rooftop pool with ocean view, golden hour, warm light on water, premium resort feel',
+          },
+        ];
+
+        for (let i = 0; i < APRESENTADORA_SCENES.length; i++) {
+          const scene = APRESENTADORA_SCENES[i];
+          setGenProgress(`Peça 3 — Apresentadora: ${scene.name} (${i + 1}/${APRESENTADORA_SCENES.length})...`);
+          try {
+            const body = {
+              prompt: scene.prompt,
+              engine: scene.engine,
+              imageUrl: scene.imageUrl,
+              format: '9:16',
+            };
+            if (scene.engine === 'veo3') {
+              body.duration = scene.duration || '8s';
+              body.generateAudio = scene.generateAudio ?? true;
             }
-          } else if (scene.driveImageUrl && scene.videoPrompt) {
-            // Cena do empreendimento (Kling com imagem do Drive)
-            setGenProgress(`Peça 3 — Apresentadora: animando cena ${sceneDone}/${scenes.length} (Kling)...`);
-            try {
-              const res = await fetch('/api/generate-video', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                  prompt: scene.videoPrompt,
-                  engine: 'kling',
-                  imageUrl: scene.driveImageUrl,
-                  format: '9:16',
-                }),
+            const res = await fetch('/api/generate-video', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify(body),
+            });
+            const result = await res.json();
+            if (result.url) {
+              allMedia.push({
+                piece: pn, scene: i + 1,
+                engine: scene.engine, type: 'video', url: result.url, prompt: scene.prompt,
               });
-              const result = await res.json();
-              if (result.url) {
-                allMedia.push({
-                  piece: pn, scene: scene.sceneNumber,
-                  engine: 'kling', type: 'video', url: result.url, prompt: scene.videoPrompt,
-                });
-              }
-            } catch (err) {
-              allMedia.push({ piece: pn, scene: scene.sceneNumber, engine: 'kling', type: 'video', error: err.message });
+            } else {
+              allMedia.push({ piece: pn, scene: i + 1, engine: scene.engine, type: 'video', error: result.error || 'Sem URL' });
             }
+          } catch (err) {
+            allMedia.push({ piece: pn, scene: i + 1, engine: scene.engine, type: 'video', error: err.message });
           }
           setGeneratedImages([...allMedia]);
         }
