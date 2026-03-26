@@ -126,18 +126,30 @@ ETAPA 3: VÍDEO APRESENTADORA
    - USAR A FOTO DA MONICA como referência visual (pasta de referências do Drive)
    - USAR A VOZ DA MONICA clonada via ElevenLabs para narração
    - A fala DEVE ser em português brasileiro
-3. Gerar vídeo da Monica via Veo 3 (1-2 chamadas):
+3. Gerar vídeo da Monica via Veo 3 IMAGE-TO-VIDEO (usar foto REAL dela):
    POST api/generate-video.js
    {
      "engine": "veo3",
-     "prompt": "Medium shot of a Brazilian woman approximately 35 years old
-       with brown hair, wearing a light beige blazer over white top,
-       speaking directly to camera with warm confident professional tone,
-       modern clean background, golden hour lighting,
-       speaking in Brazilian Portuguese, she says: '[FALA DO ROTEIRO EM PORTUGUÊS]'",
+     "imageUrl": "[URL de uma foto da Monica — ver lista abaixo]",
+     "prompt": "Woman speaking directly to camera in Brazilian Portuguese,
+       warm confident professional tone,
+       she says: '[FALA DO ROTEIRO EM PORTUGUÊS]'",
      "duration": "8s",
      "generateAudio": true
    }
+   SEMPRE usar imageUrl com foto real. NUNCA text-to-video sem foto.
+
+   Fotos da Monica (escolher a melhor pra cada cena):
+   - https://lh3.googleusercontent.com/d/1fnk4XbJ3vtkrrM5f0RAbTMSTFdOatsC9=s1920 (SZN)
+   - https://lh3.googleusercontent.com/d/1fiiABMSD7pmkS5OfxazrgOu7LZuj2E9W=s1920 (SZN 2)
+   - https://lh3.googleusercontent.com/d/1zmMlkyJSKE7g8_pxSHL-L6xs2l78bwhH=s1920 (15)
+   - https://lh3.googleusercontent.com/d/1fnkAIvdyCmIidxha4_d7v-HwC93D1Q1F=s1920 (17)
+   - https://lh3.googleusercontent.com/d/1ju22Ypcs29KQtzR72_iDPZ_QknI6POrn=s1920 (21)
+   - https://lh3.googleusercontent.com/d/1NHKgxcL57xbSltyKdGoDfrpcvcgJpYj1=s1920 (26)
+   - https://lh3.googleusercontent.com/d/16GMn12C1mSN4M2I_xXr1beBW0felXCZg=s1920 (28)
+   - https://lh3.googleusercontent.com/d/1ADbUNKHvXvyi2wG5rSnOkGGuy0cbavHC=s1920 (30)
+   - https://lh3.googleusercontent.com/d/1_trr8wzfdB3EnRJUt5qlCi7tI6ysRLeU=s1920 (31)
+
 4. Apresentar ao usuário: vídeo da Monica
 ```
 

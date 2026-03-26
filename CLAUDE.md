@@ -37,13 +37,24 @@ Roteiro aprovado → Estático (aprovar) → Narrado (aprovar) → Apresentadora
 - Usar a voz clonada da Monica (ElevenLabs) para toda narração
 
 ### REGRA 7: MONICA É A ÚNICA APRESENTADORA
-- O vídeo apresentadora usa a imagem/vídeo da Monica Medeiros (CCO Seazone)
-- Referência visual da Monica: pasta `15EKv4-VAy6CSfyA8vpKuvu_TUwq27ex4` → "Vídeo apresentadora.mp4"
-- URL da referência: `https://drive.google.com/uc?export=download&id=16AYI3NGmdrs4awvvtmO7SDQHLrEbbIHW`
-- Veo 3 DEVE gerar uma mulher que se pareça com a Monica (brasileira, ~35 anos, cabelo castanho)
+- O vídeo apresentadora usa a imagem REAL da Monica Medeiros (CCO Seazone)
 - NUNCA gerar outra pessoa. NUNCA trocar apresentadora.
 - Voz: SEMPRE a voz clonada da Monica via ElevenLabs (voice_id: KfRcTEwUDDuaM4dTSJ1V)
 - A voz da Monica é usada em TODOS os vídeos (narrado + apresentadora)
+
+**Fotos da Monica (Drive — usar como referência para Veo 3 image-to-video):**
+- Foto Monica SZN: `https://lh3.googleusercontent.com/d/1fnk4XbJ3vtkrrM5f0RAbTMSTFdOatsC9=s1920`
+- Foto Monica SZN 2: `https://lh3.googleusercontent.com/d/1fiiABMSD7pmkS5OfxazrgOu7LZuj2E9W=s1920`
+- Foto 15: `https://lh3.googleusercontent.com/d/1zmMlkyJSKE7g8_pxSHL-L6xs2l78bwhH=s1920`
+- Foto 17: `https://lh3.googleusercontent.com/d/1fnkAIvdyCmIidxha4_d7v-HwC93D1Q1F=s1920`
+- Foto 21: `https://lh3.googleusercontent.com/d/1ju22Ypcs29KQtzR72_iDPZ_QknI6POrn=s1920`
+- Foto 26: `https://lh3.googleusercontent.com/d/1NHKgxcL57xbSltyKdGoDfrpcvcgJpYj1=s1920`
+- Foto 28: `https://lh3.googleusercontent.com/d/16GMn12C1mSN4M2I_xXr1beBW0felXCZg=s1920`
+- Foto 30: `https://lh3.googleusercontent.com/d/1ADbUNKHvXvyi2wG5rSnOkGGuy0cbavHC=s1920`
+- Foto 31: `https://lh3.googleusercontent.com/d/1_trr8wzfdB3EnRJUt5qlCi7tI6ysRLeU=s1920`
+
+**Para Veo 3**: usar image-to-video com uma dessas fotos como base (não text-to-video).
+Assim o vídeo mantém o rosto REAL da Monica.
 
 ### REGRA 8: PEÇA ESTÁTICA = REFERÊNCIA
 - A peça estática de referência está em `15EKv4-VAy6CSfyA8vpKuvu_TUwq27ex4` (Estático.png)

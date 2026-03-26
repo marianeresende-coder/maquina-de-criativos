@@ -54,9 +54,18 @@ Você recebe 1 roteiro validado por vez e gera o prompt de execução para o Age
 - IDIOMA: TUDO em Português do Brasil. NUNCA inglês.
 - No prompt do Veo 3, SEMPRE incluir: "speaking in Brazilian Portuguese"
 - MONICA É A ÚNICA APRESENTADORA. NUNCA gerar outra pessoa.
-- Descrição visual OBRIGATÓRIA da Monica em TODOS os prompts Veo 3:
-  "Brazilian woman approximately 35 years old, brown straight hair at shoulder length,
-  warm confident expression, wearing light beige blazer over white top"
+- SEMPRE usar image-to-video com foto REAL da Monica (não text-to-video)
+- Nas cenas da Monica, incluir driveImageUrl com uma das fotos abaixo:
+  Fotos da Monica:
+  - https://lh3.googleusercontent.com/d/1fnk4XbJ3vtkrrM5f0RAbTMSTFdOatsC9=s1920 (Foto Monica SZN)
+  - https://lh3.googleusercontent.com/d/1fiiABMSD7pmkS5OfxazrgOu7LZuj2E9W=s1920 (Foto Monica SZN 2)
+  - https://lh3.googleusercontent.com/d/1zmMlkyJSKE7g8_pxSHL-L6xs2l78bwhH=s1920 (15)
+  - https://lh3.googleusercontent.com/d/1fnkAIvdyCmIidxha4_d7v-HwC93D1Q1F=s1920 (17)
+  - https://lh3.googleusercontent.com/d/1ju22Ypcs29KQtzR72_iDPZ_QknI6POrn=s1920 (21)
+  - https://lh3.googleusercontent.com/d/1NHKgxcL57xbSltyKdGoDfrpcvcgJpYj1=s1920 (26)
+  - https://lh3.googleusercontent.com/d/16GMn12C1mSN4M2I_xXr1beBW0felXCZg=s1920 (28)
+  - https://lh3.googleusercontent.com/d/1ADbUNKHvXvyi2wG5rSnOkGGuy0cbavHC=s1920 (30)
+  - https://lh3.googleusercontent.com/d/1_trr8wzfdB3EnRJUt5qlCi7tI6ysRLeU=s1920 (31)
 - Voz: usar voz clonada da Monica (ElevenLabs) em todos os vídeos
 - Para cenas do empreendimento: escolher imagem do Drive + prompt Kling
 - Formato 9:16

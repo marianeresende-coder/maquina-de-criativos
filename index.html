@@ -826,7 +826,9 @@ function Step3_Pipeline({ data, onReset }) {
           const engine = scene.videoEngine || (scene.driveImageUrl ? 'kling' : 'veo3');
 
           if (engine === 'veo3' && scene.videoPrompt) {
-            // Cena da Monica (Veo 3 text-to-video)
+            // Cena da Monica (Veo 3 image-to-video com foto REAL)
+            // Usar foto da Monica do Drive — priorizar a que o diretor criativo escolheu
+            const monicaPhoto = scene.driveImageUrl || 'https://lh3.googleusercontent.com/d/1fnk4XbJ3vtkrrM5f0RAbTMSTFdOatsC9=s1920';
             setGenProgress(`Peça 3 — Apresentadora: gerando Monica cena ${sceneDone}/${scenes.length} (Veo 3)...`);
             try {
               const res = await fetch('/api/generate-video', {
@@ -835,6 +837,7 @@ function Step3_Pipeline({ data, onReset }) {
                 body: JSON.stringify({
                   prompt: scene.videoPrompt,
                   engine: 'veo3',
+                  imageUrl: monicaPhoto,
                   duration: '8s',
                   generateAudio: scene.generateAudio ?? true,
                 }),
