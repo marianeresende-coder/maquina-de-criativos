@@ -49,7 +49,7 @@ module.exports = async function handler(req, res) {
   for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
     try {
       const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), 100000);
+      const timeout = setTimeout(() => controller.abort(), 280000);
 
       const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
         method: "POST",

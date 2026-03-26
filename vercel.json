@@ -11,7 +11,7 @@
       "maxDuration": 120
     },
     "api/generate-static.js": {
-      "maxDuration": 120
+      "maxDuration": 300
     },
     "api/compose-video.js": {
       "maxDuration": 300
