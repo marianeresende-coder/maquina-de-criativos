@@ -30,7 +30,7 @@ module.exports = async function handler(req, res) {
     if (!imageUrl) {
       return res.status(400).json({ error: "imageUrl required for kling" });
     }
-    endpoint = "https://fal.run/fal-ai/kling-video/v2/master";
+    endpoint = "https://fal.run/fal-ai/kling-video/v2.1/master/image-to-video";
     body = {
       prompt,
       image_url: imageUrl,

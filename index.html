@@ -720,12 +720,12 @@ function Step3_Pipeline({ data, onReset }) {
           const dadosBlock = (roteiro.match(/Dados para overlay:\s*([\s\S]*?)(?=\n\s*CTA:|DOs|$)/) || [])[1] || '';
           const dados = dadosBlock.trim().replace(/\n\s*-\s*/g, ', ').replace(/^-\s*/, '');
 
-          const prompt = `Gere uma imagem de anuncio profissional de marketing imobiliario no formato 9:16 (vertical, story). REPLIQUE EXATAMENTE o layout da imagem de referencia anexada: badge "Lancamento" no topo direito, headline grande "${hl}" em branco, card azul escuro com bullets coral mostrando os dados: ${dados}. Pin coral de localizacao "${sub}". Botao CTA coral "${cta}" no rodape. Fundo: foto aerea litoral brasileiro, praia, oceano turquesa. Marca Seazone: azul marinho #011337, coral #F1605D, branco. Design premium, limpo, moderno. Versao ${v}.`;
+          const prompt = `Voce recebeu 2 imagens: a PRIMEIRA e a foto de fundo (localizacao real do empreendimento) e a SEGUNDA e a REFERENCIA DE LAYOUT que voce deve replicar. Gere uma imagem de anuncio de marketing imobiliario 9:16 (vertical, story). USE A PRIMEIRA IMAGEM COMO FUNDO da peca. REPLIQUE EXATAMENTE o layout da SEGUNDA imagem (referencia): badge "Lancamento" no topo direito, headline grande "${hl}" em branco, card azul escuro com bullets coral mostrando os dados: ${dados}. Pin coral de localizacao "${sub}". Botao CTA coral "${cta}" no rodape. A foto de fundo deve ser a primeira imagem (localizacao). Marca Seazone: azul marinho #011337, coral #F1605D, branco. Design premium, limpo, moderno. Versao ${v}.`;
 
           const res = await fetch('/api/generate-static', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ prompt, referenceImageUrl: DRIVE.refEstatico }),
+            body: JSON.stringify({ prompt, referenceImageUrl: DRIVE.refEstatico, backgroundImageUrl: DRIVE.localizacao }),
           });
           const result = await res.json();
           if (result.url) {
