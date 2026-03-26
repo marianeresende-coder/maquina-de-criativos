@@ -846,16 +846,51 @@ ABSOLUTE RULES:
 - Background photo should show through clearly in the top half
 - Version ${v}`;
 
-          const res = await fetch('/api/generate-static', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ prompt, referenceImageUrl: DRIVE.refEstatico, backgroundImageUrl: DRIVE.localizacao }),
-          });
-          const result = await res.json();
-          if (result.url) {
-            vers.push({ url: result.url, type: 'image', engine: 'gpt5-image', version: v });
-          } else {
-            errs.push(`v${v}: ${result.error || 'Sem URL'}`);
+          // Chamar API com retry (até 2 tentativas no frontend)
+          let staticResult = null;
+          for (let fetchAttempt = 0; fetchAttempt < 2; fetchAttempt++) {
+            try {
+              const res = await fetch('/api/generate-static', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ prompt, referenceImageUrl: DRIVE.refEstatico, backgroundImageUrl: DRIVE.localizacao }),
+              });
+              // Parse seguro — nunca crashar em resposta não-JSON
+              const rawText = await res.text();
+              try {
+                staticResult = JSON.parse(rawText);
+              } catch {
+                // Resposta não é JSON (erro da Vercel/OpenRouter)
+                if (fetchAttempt === 0) {
+                  setGenProgress(`Estático v${v} — erro transiente, retentando em 5s...`);
+                  await new Promise(r => setTimeout(r, 5000));
+                  continue;
+                }
+                errs.push(`v${v}: API retornou erro: ${rawText.substring(0, 150)}`);
+                break;
+              }
+              if (staticResult.url) break; // sucesso
+              if (staticResult.error && fetchAttempt === 0) {
+                setGenProgress(`Estático v${v} — ${staticResult.error.substring(0, 80)}, retentando...`);
+                await new Promise(r => setTimeout(r, 5000));
+                staticResult = null;
+                continue;
+              }
+              break; // erro definitivo
+            } catch (fetchErr) {
+              if (fetchAttempt === 0) {
+                setGenProgress(`Estático v${v} — erro de rede, retentando em 5s...`);
+                await new Promise(r => setTimeout(r, 5000));
+                continue;
+              }
+              errs.push(`v${v}: ${fetchErr.message}`);
+              break;
+            }
+          }
+          if (staticResult?.url) {
+            vers.push({ url: staticResult.url, type: 'image', engine: 'gpt5-image', version: v });
+          } else if (staticResult?.error) {
+            errs.push(`v${v}: ${staticResult.error}`);
           }
 
         } else if (pn === 2) {

@@ -18,42 +18,25 @@ module.exports = async function handler(req, res) {
     return res.status(500).json({ error: "OPENROUTER_API_KEY not configured" });
   }
 
-  // Helper: baixar imagem e converter pra base64 data URL
-  async function toBase64DataUrl(url) {
-    try {
-      const r = await fetch(url, { signal: AbortSignal.timeout(15000) });
-      if (!r.ok) return null;
-      const buf = await r.arrayBuffer();
-      const contentType = r.headers.get('content-type') || 'image/jpeg';
-      return `data:${contentType};base64,${Buffer.from(buf).toString('base64')}`;
-    } catch {
-      return null;
-    }
-  }
-
   // Montar content com imagens + prompt
+  // IMPORTANTE: passa URLs diretas pro OpenRouter (sem base64)
+  // Isso reduz o request de ~10MB pra ~200 bytes e evita timeouts
   const content = [];
 
   // 1. Foto de localização (fundo da peça)
   if (backgroundImageUrl) {
-    const bgData = await toBase64DataUrl(backgroundImageUrl);
-    if (bgData) {
-      content.push({
-        type: "image_url",
-        image_url: { url: bgData },
-      });
-    }
+    content.push({
+      type: "image_url",
+      image_url: { url: backgroundImageUrl },
+    });
   }
 
   // 2. Referência de layout (Estático.png)
   if (referenceImageUrl) {
-    const refData = await toBase64DataUrl(referenceImageUrl);
-    if (refData) {
-      content.push({
-        type: "image_url",
-        image_url: { url: refData },
-      });
-    }
+    content.push({
+      type: "image_url",
+      image_url: { url: referenceImageUrl },
+    });
   }
 
   content.push({
