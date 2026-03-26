@@ -1,18 +1,17 @@
 // AGENTE 05 — EXECUTOR CRIATIVO (vídeos)
 // Chama fal.ai para gerar um vídeo por vez a partir de uma imagem
-// Engines: "kling" (cenas do empreendimento), "veo3" (Monica apresentadora — mais realista)
+// Engines: "kling" (cenas do empreendimento), "kling3" (Monica apresentadora — Kling 3.0 Pro)
 
 module.exports = async function handler(req, res) {
   if (req.method !== "POST") {
     return res.status(405).json({ error: "Method not allowed" });
   }
 
-  const { prompt, engine, imageUrl, format, duration, generateAudio } = req.body;
-  // engine: "kling" ou "veo3"
+  const { prompt, engine, imageUrl, format, duration } = req.body;
+  // engine: "kling" (v2.1 cenas), "kling3" (v3 Pro — Monica, melhor pra pessoas)
   // imageUrl: URL da imagem (do Drive ou gerada)
   // format: "9:16" (padrão)
-  // duration: duração do vídeo (veo3: "4s"/"6s"/"8s", kling: "5"/"10")
-  // generateAudio: boolean (só veo3 — gera áudio junto com o vídeo)
+  // duration: "5" ou "10" (kling/kling3)
 
   if (!prompt || !engine) {
     return res.status(400).json({ error: "prompt and engine required" });
@@ -26,7 +25,7 @@ module.exports = async function handler(req, res) {
   let endpoint, body;
 
   if (engine === "kling") {
-    // Kling: para animar imagens do Drive (cenas do empreendimento)
+    // Kling v2.1: para animar imagens do Drive (cenas do empreendimento)
     if (!imageUrl) {
       return res.status(400).json({ error: "imageUrl required for kling" });
     }
@@ -37,31 +36,21 @@ module.exports = async function handler(req, res) {
       duration: duration || "5",
       aspect_ratio: "9:16",
     };
-  } else if (engine === "veo3" && imageUrl) {
-    // Veo 3 image-to-video: para a Monica (mais realista pra pessoas)
-    endpoint = "https://fal.run/fal-ai/veo3/image-to-video";
+  } else if (engine === "kling3") {
+    // Kling 3.0 Pro: para a Monica (melhor qualidade para pessoas reais)
+    // ~$0.112/s sem áudio — muito mais barato que Veo3 ($0.20/s)
+    if (!imageUrl) {
+      return res.status(400).json({ error: "imageUrl required for kling3" });
+    }
+    endpoint = "https://fal.run/fal-ai/kling-video/v3/pro/image-to-video";
     body = {
       prompt,
       image_url: imageUrl,
-      duration: duration || "8s",
+      duration: duration || "10",
       aspect_ratio: "9:16",
-      resolution: "720p",
-      generate_audio: generateAudio ?? false,
-      safety_tolerance: 5,
-    };
-  } else if (engine === "veo3") {
-    // Veo 3 text-to-video: gerar a Monica do zero (sem imagem base)
-    endpoint = "https://fal.run/fal-ai/veo3";
-    body = {
-      prompt,
-      duration: duration || "8s",
-      aspect_ratio: "9:16",
-      resolution: "720p",
-      generate_audio: generateAudio ?? false,
-      safety_tolerance: 5,
     };
   } else {
-    return res.status(400).json({ error: "engine must be 'kling' or 'veo3'" });
+    return res.status(400).json({ error: "engine must be 'kling' or 'kling3'" });
   }
 
   try {
@@ -93,7 +82,6 @@ module.exports = async function handler(req, res) {
       engine,
       prompt,
       format: format || "9:16",
-      hasAudio: engine === "veo3" && (generateAudio ?? false),
     });
   } catch (error) {
     return res.status(500).json({ error: error.message });

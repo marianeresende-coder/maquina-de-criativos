@@ -898,33 +898,33 @@ ABSOLUTE RULES:
           const letterings = letteringMatches.map(l => l.replace(/Lettering:\s*/, '').trim());
           const fullNarration = falas.join(' ') || 'Eu sou a Monica, socia fundadora da Seazone.';
 
-          // Foto da Monica = referência de ROSTO. O prompt descreve ela na praia.
+          // Foto da Monica = referência de ROSTO. Kling 3.0 Pro preserva o rosto e gera cena.
           const MONICA_PHOTOS = [
             DRIVE.monica,
             'https://lh3.googleusercontent.com/d/1fiiABMSD7pmkS5OfxazrgOu7LZuj2E9W=s1920',
           ];
 
           const CENAS = [
-            { name: 'Monica Intro', engine: 'veo3', url: MONICA_PHOTOS[0], clipDuration: 8,
-              prompt: `Brazilian woman with brown hair walking on the beach barefoot on the sand, speaking naturally to camera, confident and approachable, golden hour warm light, ocean waves in background, wearing casual elegant outfit, speaking in Brazilian Portuguese: "${falas[0] || 'Oi, eu sou a Monica, socia fundadora da Seazone.'}" — cinematic, shallow depth of field, 9:16 vertical` },
+            { name: 'Monica Intro', engine: 'kling3', url: MONICA_PHOTOS[0], clipDuration: 8,
+              prompt: `Brazilian woman with brown hair walking on the beach barefoot on the sand, speaking naturally to camera, confident and approachable, golden hour warm light, ocean waves in background, wearing casual elegant outfit, speaking in Brazilian Portuguese, cinematic shallow depth of field` },
             { name: 'Fachada', engine: 'kling', url: DRIVE.fachada, clipDuration: 5,
               prompt: 'Slow cinematic tilt up modern building facade, golden hour, premium architecture, warm light' },
             { name: 'Rooftop', engine: 'kling', url: DRIVE.rooftop, clipDuration: 5,
               prompt: 'Gentle pan luxury rooftop infinity pool, ocean panorama view, golden hour, resort feel' },
             { name: 'Localizacao', engine: 'kling', url: DRIVE.localizacao, clipDuration: 5,
               prompt: 'Aerial push forward Brazilian coastline, turquoise ocean, white sand beach, golden hour' },
-            { name: 'Monica CTA', engine: 'veo3', url: MONICA_PHOTOS[1], clipDuration: 7,
-              prompt: `Brazilian woman on the beach smiling, speaking with enthusiasm to camera, warm golden hour, ocean behind, natural and inviting tone, speaking in Brazilian Portuguese: "${falas[falas.length - 1] || falas[1] || 'Garanta sua unidade.'}" — cinematic, 9:16 vertical` },
+            { name: 'Monica CTA', engine: 'kling3', url: MONICA_PHOTOS[1], clipDuration: 7,
+              prompt: `Brazilian woman on the beach smiling, speaking with enthusiasm to camera, warm golden hour, ocean behind, natural and inviting tone, cinematic vertical video` },
           ];
 
-          // Gerar TODOS os clips em paralelo (Veo3 + Kling ao mesmo tempo)
+          // Gerar TODOS os clips em paralelo (Kling 3.0 Pro + Kling v2.1 ao mesmo tempo)
           const clips = new Array(CENAS.length).fill(null);
-          setGenProgress(`Apresentadora v${v} — gerando 2 clips Monica + 3 cenas em paralelo...`);
+          setGenProgress(`Apresentadora v${v} — gerando 2 clips Monica (Kling 3.0) + 3 cenas em paralelo...`);
 
           const allPromises = CENAS.map(async (cena, i) => {
             try {
               const body = { prompt: cena.prompt, engine: cena.engine, imageUrl: cena.url, format: '9:16' };
-              if (cena.engine === 'veo3') { body.duration = '8s'; body.generateAudio = false; }
+              if (cena.engine === 'kling3') { body.duration = '10'; } // 10s, Creatomate recorta
               const res = await fetch('/api/generate-video', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
               const r = await res.json();
               if (r.url) clips[i] = { url: r.url, lettering: letterings[i] || '', duration: cena.clipDuration };
@@ -1103,7 +1103,7 @@ ABSOLUTE RULES:
                 <div className="space-y-1 text-sm text-white/70">
                   <p>🖼️ <strong>GPT-5 Image</strong> — peca estatica</p>
                   <p>🎬 <strong>Kling</strong> — animacao de cenas (fachada, rooftop, localizacao)</p>
-                  <p>👩 <strong>Veo 3</strong> — video da Monica apresentadora</p>
+                  <p>👩 <strong>Kling 3.0 Pro</strong> — video da Monica apresentadora</p>
                   <p>🎙️ <strong>ElevenLabs</strong> — voz clonada da Monica</p>
                   <p>🎞️ <strong>Creatomate</strong> — montagem final dos videos</p>
                   <p>🧠 <strong>Claude Sonnet</strong> — roteiros e validacao</p>

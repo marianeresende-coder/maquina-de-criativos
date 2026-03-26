@@ -7,13 +7,13 @@
 ### REGRA 1: SÃO 3 ENTREGÁVEIS. SÓ 3. NUNCA MAIS.
 1. **Peça Estática** — gerada via GPT-5 Image (referência + dados do briefing)
 2. **Vídeo Narrado (15s)** — imagens do Drive animadas (Kling) + narração (ElevenLabs) + montagem (Creatomate)
-3. **Vídeo Apresentadora (30s)** — Monica (Veo 3) + cenas animadas (Kling) + narração (ElevenLabs) + montagem (Creatomate)
+3. **Vídeo Apresentadora (30s)** — Monica (Kling 3.0 Pro) + cenas animadas (Kling v2.1) + narração (ElevenLabs) + montagem (Creatomate)
 
 ### REGRA 2: IMAGENS — GPT-5 IMAGE PARA ESTÁTICO, DRIVE PARA VÍDEOS
 - **Estático**: gerado via GPT-5 Image (OpenRouter) com referência do Estático.png
 - **NUNCA chamar generate-image.js, Flux Pro ou Recraft**
 - As imagens REAIS do Drive são usadas para animação de vídeo (Kling)
-- Para Monica: usar Veo 3 (image-to-video com foto real)
+- Para Monica: usar Kling 3.0 Pro (image-to-video com foto real — melhor pra pessoas)
 - Cada peça gera 2 versões para o usuário escolher
 
 ### REGRA 3: FLUXO SEQUENCIAL COM APROVAÇÃO
@@ -26,13 +26,13 @@ Roteiro aprovado → Estático (aprovar) → Narrado (aprovar) → Apresentadora
 ### REGRA 4: MÁXIMO DE CHAMADAS DE API (por versão)
 - Estático: **1 chamada** (GPT-5 Image via OpenRouter)
 - Narrado: **~4 chamadas** (3 Kling + 1 ElevenLabs + 1 Creatomate) — em paralelo
-- Apresentadora: **~6 chamadas** (2 Veo 3 + 3 Kling + 1 ElevenLabs + 1 Creatomate) — em paralelo
+- Apresentadora: **~6 chamadas** (2 Kling 3.0 Pro + 3 Kling v2.1 + 1 ElevenLabs + 1 Creatomate) — em paralelo
 - **x1 versão de vídeo = ~10-12 chamadas total no pacote completo**
-- Veo3: usar duration "8s" (melhor custo-benefício, Creatomate recorta)
+- Kling 3.0 Pro: usar duration "10" (Creatomate recorta para o tempo exato)
 
 ### REGRA 5: IDIOMA = PORTUGUÊS DO BRASIL. SEMPRE.
 - Narração, falas da Monica, textos: TUDO em português brasileiro
-- Prompts de vídeo Veo 3 DEVEM incluir "speaking in Brazilian Portuguese"
+- Prompts de vídeo da Monica DEVEM incluir "speaking in Brazilian Portuguese"
 - NUNCA gerar conteúdo em inglês para o usuário final
 - Usar a voz clonada da Monica (ElevenLabs) para toda narração
 
@@ -42,7 +42,7 @@ Roteiro aprovado → Estático (aprovar) → Narrado (aprovar) → Apresentadora
 - Voz: SEMPRE a voz clonada da Monica via ElevenLabs (voice_id: KfRcTEwUDDuaM4dTSJ1V)
 - A voz da Monica é usada em TODOS os vídeos (narrado + apresentadora)
 
-**Fotos da Monica (Drive — usar como referência para Veo 3 image-to-video):**
+**Fotos da Monica (Drive — usar como referência de ROSTO para Kling 3.0 Pro image-to-video):**
 - Foto Monica SZN: `https://lh3.googleusercontent.com/d/1fnk4XbJ3vtkrrM5f0RAbTMSTFdOatsC9=s1920`
 - Foto Monica SZN 2: `https://lh3.googleusercontent.com/d/1fiiABMSD7pmkS5OfxazrgOu7LZuj2E9W=s1920`
 - Foto 15: `https://lh3.googleusercontent.com/d/1zmMlkyJSKE7g8_pxSHL-L6xs2l78bwhH=s1920`
@@ -53,8 +53,8 @@ Roteiro aprovado → Estático (aprovar) → Narrado (aprovar) → Apresentadora
 - Foto 30: `https://lh3.googleusercontent.com/d/1ADbUNKHvXvyi2wG5rSnOkGGuy0cbavHC=s1920`
 - Foto 31: `https://lh3.googleusercontent.com/d/1_trr8wzfdB3EnRJUt5qlCi7tI6ysRLeU=s1920`
 
-**Para Veo 3**: usar image-to-video com uma dessas fotos como base (não text-to-video).
-Assim o vídeo mantém o rosto REAL da Monica.
+**Para Kling 3.0 Pro**: usar image-to-video com uma dessas fotos como base (não text-to-video).
+Assim o vídeo mantém o rosto REAL da Monica. Kling 3.0 Pro tem melhor qualidade facial e custa ~1/3 do Veo3.
 
 ### REGRA 8: PEÇA ESTÁTICA = GPT-5 IMAGE COM REFERÊNCIA
 - A peça estática é GERADA via GPT-5 Image (model: openai/gpt-5-image no OpenRouter)
