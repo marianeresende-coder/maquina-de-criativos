@@ -53,37 +53,63 @@ module.exports = async function handler(req, res) {
     return res.status(400).json({ error: "engine must be 'kling' or 'kling3'" });
   }
 
-  try {
-    const response = await fetch(endpoint, {
-      method: "POST",
-      headers: {
-        "Authorization": `Key ${falKey}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify(body),
-    });
+  const MAX_RETRIES = 2;
+  for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
+    try {
+      const response = await fetch(endpoint, {
+        method: "POST",
+        headers: {
+          "Authorization": `Key ${falKey}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(body),
+      });
 
-    if (!response.ok) {
-      const errText = await response.text();
-      return res.status(response.status).json({ error: `fal.ai error: ${errText}` });
+      if (!response.ok) {
+        const errText = await response.text();
+        if (response.status >= 500 && attempt < MAX_RETRIES - 1) {
+          await new Promise(r => setTimeout(r, 3000));
+          continue;
+        }
+        return res.status(response.status).json({ error: `fal.ai error (${response.status}): ${errText.substring(0, 200)}` });
+      }
+
+      // Parse seguro
+      const rawBody = await response.text();
+      let data;
+      try {
+        data = JSON.parse(rawBody);
+      } catch {
+        if (attempt < MAX_RETRIES - 1) {
+          await new Promise(r => setTimeout(r, 3000));
+          continue;
+        }
+        return res.status(500).json({ error: `fal.ai retornou texto invalido: ${rawBody.substring(0, 200)}` });
+      }
+
+      // Extract video URL
+      const videoUrl = data.video?.url || data.url || null;
+
+      if (!videoUrl) {
+        if (attempt < MAX_RETRIES - 1) {
+          await new Promise(r => setTimeout(r, 3000));
+          continue;
+        }
+        return res.status(500).json({ error: "fal.ai nao retornou video URL", raw: JSON.stringify(data).substring(0, 300) });
+      }
+
+      return res.status(200).json({
+        url: videoUrl,
+        engine,
+        prompt,
+        format: format || "9:16",
+      });
+    } catch (error) {
+      if (attempt < MAX_RETRIES - 1) {
+        await new Promise(r => setTimeout(r, 3000));
+        continue;
+      }
+      return res.status(500).json({ error: error.message });
     }
-
-    const data = await response.json();
-
-    // Extract video URL
-    const videoUrl = data.video?.url || data.url || null;
-
-    if (!videoUrl) {
-      return res.status(500).json({ error: "No video URL in response", raw: data });
-    }
-
-    return res.status(200).json({
-      url: videoUrl,
-      engine,
-      prompt,
-      format: format || "9:16",
-    });
-  } catch (error) {
-    return res.status(500).json({ error: error.message });
   }
 };

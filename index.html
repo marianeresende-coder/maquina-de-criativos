@@ -591,6 +591,28 @@ function PieceCard({ pieceNumber, briefing, autoStart }) {
 }
 
 // ============================================================
+// HELPER: fetch com parse JSON seguro + retry
+// ============================================================
+async function safeFetchJson(url, options, retries = 2, delayMs = 3000) {
+  for (let i = 0; i < retries; i++) {
+    try {
+      const res = await fetch(url, options);
+      const text = await res.text();
+      try {
+        return JSON.parse(text);
+      } catch {
+        if (i < retries - 1) { await new Promise(r => setTimeout(r, delayMs)); continue; }
+        return { error: `Resposta invalida: ${text.substring(0, 150)}` };
+      }
+    } catch (e) {
+      if (i < retries - 1) { await new Promise(r => setTimeout(r, delayMs)); continue; }
+      return { error: e.message };
+    }
+  }
+  return { error: 'Todas tentativas falharam' };
+}
+
+// ============================================================
 // STEP 3 — PIPELINE (real execution!)
 // ============================================================
 
@@ -919,48 +941,46 @@ ABSOLUTE RULES:
             { name: 'Localizacao 3', url: DRIVE.localizacaoAll[2], prompt: 'Aerial pull back revealing beautiful beach and coastal city, golden hour', clipDuration: 1.5, bloco: 2 },
           ];
 
-          // Gerar 9 clips via Kling EM PARALELO
-          setGenProgress(`Narrado v${v} — gerando 9 clips em paralelo...`);
-          const clipPromises = CENAS.map(async (cena) => {
-            try {
-              const res = await fetch('/api/generate-video', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+          // Gerar 9 clips via Kling — em lotes de 3 (evita rate limit do fal.ai)
+          setGenProgress(`Narrado v${v} — gerando 9 clips (3 por vez)...`);
+          const clips = [];
+          for (let batch = 0; batch < 3; batch++) {
+            const batchCenas = CENAS.slice(batch * 3, batch * 3 + 3);
+            setGenProgress(`Narrado v${v} — bloco ${batch + 1}/3 (${['Fachada','Rooftop','Localização'][batch]})...`);
+            const batchResults = await Promise.all(batchCenas.map(async (cena) => {
+              const r = await safeFetchJson('/api/generate-video', { method: 'POST', headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ prompt: cena.prompt, engine: 'kling', imageUrl: cena.url, format: '9:16' }) });
-              const r = await res.json();
               if (r.url) return { url: r.url, lettering: letterings[cena.bloco] || '', duration: cena.clipDuration };
-              else { errs.push(`v${v} ${cena.name}: ${r.error || 'Sem URL'}`); return null; }
-            } catch (e) { errs.push(`v${v} ${cena.name}: ${e.message}`); return null; }
-          });
-          const clipResults = await Promise.all(clipPromises);
-          const clips = clipResults.filter(Boolean);
+              errs.push(`v${v} ${cena.name}: ${r.error || 'Sem URL'}`); return null;
+            }));
+            clips.push(...batchResults.filter(Boolean));
+            // Pausa entre lotes pra não estourar rate limit
+            if (batch < 2) await new Promise(r => setTimeout(r, 2000));
+          }
 
           // Narracao ElevenLabs
           let audioUrl = null;
           setGenProgress(`Narrado v${v} — narracao...`);
-          try {
-            const res = await fetch('/api/generate-audio', { method: 'POST', headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ text: fullNarration }) });
-            const r = await res.json();
-            if (r.audio) audioUrl = `data:audio/mp3;base64,${r.audio}`;
-          } catch (e) { errs.push(`v${v} audio: ${e.message}`); }
+          const audioResult = await safeFetchJson('/api/generate-audio', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ text: fullNarration }) });
+          if (audioResult.audio) audioUrl = `data:audio/mp3;base64,${audioResult.audio}`;
+          else if (audioResult.error) errs.push(`v${v} audio: ${audioResult.error}`);
 
           // Montar via Creatomate (com polling no frontend)
           if (clips.length > 0) {
             setGenProgress(`Narrado v${v} — montando video final (${clips.length} clips)...`);
-            try {
-              const res = await fetch('/api/compose-video', { method: 'POST', headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ clips, audioUrl, duration: 15, type: 'narrado' }) });
-              const r = await res.json();
-              if (r.url) {
-                vers.push({ url: r.url, type: 'video', engine: 'creatomate', version: v });
-              } else if (r.renderId) {
-                setGenProgress(`Narrado v${v} — montando video (pode levar alguns minutos)...`);
-                const videoUrl = await pollCreatomateRender(r.renderId, (msg) => setGenProgress(`Narrado v${v} — ${msg}`));
-                if (videoUrl) vers.push({ url: videoUrl, type: 'video', engine: 'creatomate', version: v });
-                else errs.push(`v${v} montagem: render falhou`);
-              } else {
-                errs.push(`v${v} montagem: ${r.error || 'Sem URL e sem renderId'}`);
-              }
-            } catch (e) { errs.push(`v${v} montagem: ${e.message}`); }
+            const compResult = await safeFetchJson('/api/compose-video', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ clips, audioUrl, duration: 15, type: 'narrado' }) });
+            if (compResult.url) {
+              vers.push({ url: compResult.url, type: 'video', engine: 'creatomate', version: v });
+            } else if (compResult.renderId) {
+              setGenProgress(`Narrado v${v} — montando video (pode levar alguns minutos)...`);
+              const videoUrl = await pollCreatomateRender(compResult.renderId, (msg) => setGenProgress(`Narrado v${v} — ${msg}`));
+              if (videoUrl) vers.push({ url: videoUrl, type: 'video', engine: 'creatomate', version: v });
+              else errs.push(`v${v} montagem: render falhou`);
+            } else {
+              errs.push(`v${v} montagem: ${compResult.error || 'Sem URL e sem renderId'}`);
+            }
           }
 
         } else if (pn === 3) {
@@ -992,40 +1012,48 @@ ABSOLUTE RULES:
               prompt: `Brazilian woman on the beach smiling, speaking with enthusiasm to camera, warm golden hour, ocean behind, natural and inviting tone, cinematic vertical video` },
           ];
 
-          // Gerar TODOS os clips em paralelo (Kling 3.0 Pro + Kling v2.1 ao mesmo tempo)
+          // Gerar clips em lotes (Monica primeiro, depois empreendimento — evita rate limit)
           const clips = new Array(CENAS.length).fill(null);
-          setGenProgress(`Apresentadora v${v} — gerando 2 clips Monica (Kling 3.0) + 3 cenas em paralelo...`);
 
-          const allPromises = CENAS.map(async (cena, i) => {
-            try {
-              const body = { prompt: cena.prompt, engine: cena.engine, imageUrl: cena.url, format: '9:16' };
-              if (cena.engine === 'kling3') { body.duration = '10'; } // 10s, Creatomate recorta
-              const res = await fetch('/api/generate-video', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
-              const r = await res.json();
-              if (r.url) clips[i] = { url: r.url, lettering: letterings[i] || '', duration: cena.clipDuration };
-              else errs.push(`v${v} ${cena.name}: ${r.error || 'Sem URL'}`);
-            } catch (e) { errs.push(`v${v} ${cena.name}: ${e.message}`); }
-          });
-          await Promise.all(allPromises);
+          // Lote 1: Monica clips (kling3)
+          setGenProgress(`Apresentadora v${v} — gerando clips Monica (Kling 3.0)...`);
+          const monicaCenas = CENAS.map((c, i) => ({ ...c, idx: i })).filter(c => c.engine === 'kling3');
+          await Promise.all(monicaCenas.map(async (cena) => {
+            const body = { prompt: cena.prompt, engine: 'kling3', imageUrl: cena.url, format: '9:16', duration: '10' };
+            const r = await safeFetchJson('/api/generate-video', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+            if (r.url) clips[cena.idx] = { url: r.url, lettering: letterings[cena.idx] || '', duration: cena.clipDuration };
+            else errs.push(`v${v} ${cena.name}: ${r.error || 'Sem URL'}`);
+          }));
+
+          // Pausa entre lotes
+          await new Promise(r => setTimeout(r, 2000));
+
+          // Lote 2: Empreendimento clips (kling v2.1)
+          setGenProgress(`Apresentadora v${v} — gerando cenas empreendimento...`);
+          const empCenas = CENAS.map((c, i) => ({ ...c, idx: i })).filter(c => c.engine === 'kling');
+          await Promise.all(empCenas.map(async (cena) => {
+            const body = { prompt: cena.prompt, engine: 'kling', imageUrl: cena.url, format: '9:16' };
+            const r = await safeFetchJson('/api/generate-video', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+            if (r.url) clips[cena.idx] = { url: r.url, lettering: letterings[cena.idx] || '', duration: cena.clipDuration };
+            else errs.push(`v${v} ${cena.name}: ${r.error || 'Sem URL'}`);
+          }));
+
           const validClips = clips.filter(Boolean);
 
           // Narracao ElevenLabs
           let audioUrl = null;
           setGenProgress(`Apresentadora v${v} — narracao...`);
-          try {
-            const res = await fetch('/api/generate-audio', { method: 'POST', headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ text: fullNarration }) });
-            const r = await res.json();
-            if (r.audio) audioUrl = `data:audio/mp3;base64,${r.audio}`;
-          } catch (e) { errs.push(`v${v} audio: ${e.message}`); }
+          const audioResult = await safeFetchJson('/api/generate-audio', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ text: fullNarration }) });
+          if (audioResult.audio) audioUrl = `data:audio/mp3;base64,${audioResult.audio}`;
+          else if (audioResult.error) errs.push(`v${v} audio: ${audioResult.error}`);
 
           // Montar via Creatomate (com polling no frontend)
           if (validClips.length > 0) {
             setGenProgress(`Apresentadora v${v} — montando video final (${validClips.length} clips)...`);
-            try {
-              const res = await fetch('/api/compose-video', { method: 'POST', headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ clips: validClips, audioUrl, duration: 30, type: 'apresentadora' }) });
-              const r = await res.json();
+            const compResult = await safeFetchJson('/api/compose-video', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ clips: validClips, audioUrl, duration: 30, type: 'apresentadora' }) });
+            const r = compResult;
               if (r.url) {
                 vers.push({ url: r.url, type: 'video', engine: 'creatomate', version: v });
               } else if (r.renderId) {
