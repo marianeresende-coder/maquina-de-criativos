@@ -1,0 +1,5 @@
+voices/
+step3.js
+*.md
+!README.md
+.git
