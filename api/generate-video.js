@@ -1,6 +1,7 @@
 // AGENTE 05 — EXECUTOR CRIATIVO (vídeos)
 // Chama fal.ai para gerar um vídeo por vez a partir de uma imagem
 // Engines: "kling" (cenas do empreendimento), "kling3" (Monica apresentadora — Kling 3.0 Pro)
+// Usa fal.ai queue API (assíncrona) para evitar timeout na Vercel
 
 module.exports = async function handler(req, res) {
   if (req.method !== "POST") {
@@ -8,10 +9,6 @@ module.exports = async function handler(req, res) {
   }
 
   const { prompt, engine, imageUrl, format, duration } = req.body;
-  // engine: "kling" (v2.1 cenas), "kling3" (v3 Pro — Monica, melhor pra pessoas)
-  // imageUrl: URL da imagem (do Drive ou gerada)
-  // format: "9:16" (padrão)
-  // duration: "5" ou "10" (kling/kling3)
 
   if (!prompt || !engine) {
     return res.status(400).json({ error: "prompt and engine required" });
@@ -22,14 +19,13 @@ module.exports = async function handler(req, res) {
     return res.status(500).json({ error: "FAL_KEY not configured" });
   }
 
-  let endpoint, body;
+  let falModel, body;
 
   if (engine === "kling") {
-    // Kling v2.1: para animar imagens do Drive (cenas do empreendimento)
     if (!imageUrl) {
       return res.status(400).json({ error: "imageUrl required for kling" });
     }
-    endpoint = "https://fal.run/fal-ai/kling-video/v2.1/master/image-to-video";
+    falModel = "fal-ai/kling-video/v2.1/master/image-to-video";
     body = {
       prompt,
       image_url: imageUrl,
@@ -37,12 +33,10 @@ module.exports = async function handler(req, res) {
       aspect_ratio: "9:16",
     };
   } else if (engine === "kling3") {
-    // Kling 3.0 Pro: para a Monica (melhor qualidade para pessoas reais)
-    // ~$0.112/s sem áudio — muito mais barato que Veo3 ($0.20/s)
     if (!imageUrl) {
       return res.status(400).json({ error: "imageUrl required for kling3" });
     }
-    endpoint = "https://fal.run/fal-ai/kling-video/v3/pro/image-to-video";
+    falModel = "fal-ai/kling-video/v3/pro/image-to-video";
     body = {
       prompt,
       image_url: imageUrl,
@@ -53,9 +47,10 @@ module.exports = async function handler(req, res) {
     return res.status(400).json({ error: "engine must be 'kling' or 'kling3'" });
   }
 
-  // SEM RETRY — fal.ai cobra por chamada, mesmo em erro. Nunca retentar automaticamente.
+  // SEM RETRY — fal.ai cobra por chamada, mesmo em erro.
   try {
-    const response = await fetch(endpoint, {
+    // Usar queue API: submete o job e retorna request_id imediatamente
+    const submitResponse = await fetch(`https://queue.fal.run/${falModel}`, {
       method: "POST",
       headers: {
         "Authorization": `Key ${falKey}`,
@@ -64,31 +59,73 @@ module.exports = async function handler(req, res) {
       body: JSON.stringify(body),
     });
 
-    if (!response.ok) {
-      const errText = await response.text();
-      return res.status(response.status).json({ error: `fal.ai error (${response.status}): ${errText.substring(0, 200)}` });
+    if (!submitResponse.ok) {
+      const errText = await submitResponse.text();
+      return res.status(submitResponse.status).json({ error: `fal.ai error (${submitResponse.status}): ${errText.substring(0, 200)}` });
     }
 
-    // Parse seguro (sem retry — é só parse, não custa dinheiro)
-    const rawBody = await response.text();
-    let data;
-    try {
-      data = JSON.parse(rawBody);
-    } catch {
-      return res.status(500).json({ error: `fal.ai retornou texto invalido: ${rawBody.substring(0, 200)}` });
+    const submitData = await submitResponse.json();
+    const requestId = submitData.request_id;
+
+    if (!requestId) {
+      return res.status(500).json({ error: "fal.ai nao retornou request_id", raw: JSON.stringify(submitData).substring(0, 300) });
     }
 
-    const videoUrl = data.video?.url || data.url || null;
+    // Poll até completar (com timeout de 270s para ficar dentro do limite da Vercel)
+    const startTime = Date.now();
+    const maxWait = 270000; // 270s (margem de 30s antes do timeout de 300s)
+    const pollInterval = 5000; // 5s entre checks
 
-    if (!videoUrl) {
-      return res.status(500).json({ error: "fal.ai nao retornou video URL", raw: JSON.stringify(data).substring(0, 300) });
+    while (Date.now() - startTime < maxWait) {
+      await new Promise(r => setTimeout(r, pollInterval));
+
+      const statusResponse = await fetch(`https://queue.fal.run/${falModel}/requests/${requestId}/status`, {
+        headers: { "Authorization": `Key ${falKey}` },
+      });
+
+      if (!statusResponse.ok) continue;
+
+      const statusData = await statusResponse.json();
+
+      if (statusData.status === "COMPLETED") {
+        // Buscar resultado
+        const resultResponse = await fetch(`https://queue.fal.run/${falModel}/requests/${requestId}`, {
+          headers: { "Authorization": `Key ${falKey}` },
+        });
+
+        if (!resultResponse.ok) {
+          return res.status(500).json({ error: "Falha ao buscar resultado do fal.ai" });
+        }
+
+        const resultData = await resultResponse.json();
+        const videoUrl = resultData.video?.url || resultData.url || null;
+
+        if (!videoUrl) {
+          return res.status(500).json({ error: "fal.ai nao retornou video URL", raw: JSON.stringify(resultData).substring(0, 300) });
+        }
+
+        return res.status(200).json({
+          url: videoUrl,
+          engine,
+          prompt,
+          format: format || "9:16",
+        });
+      }
+
+      if (statusData.status === "FAILED") {
+        return res.status(500).json({ error: `fal.ai job failed: ${JSON.stringify(statusData).substring(0, 300)}` });
+      }
+
+      // IN_QUEUE ou IN_PROGRESS — continuar polling
     }
 
-    return res.status(200).json({
-      url: videoUrl,
+    // Timeout — retorna request_id pro frontend tentar depois
+    return res.status(202).json({
+      status: "processing",
+      requestId,
+      falModel,
       engine,
-      prompt,
-      format: format || "9:16",
+      message: "Video ainda processando. Use poll-video para verificar.",
     });
   } catch (error) {
     return res.status(500).json({ error: error.message });
