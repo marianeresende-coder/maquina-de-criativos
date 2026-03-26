@@ -954,9 +954,9 @@ ABSOLUTE RULES:
           // === NARRADO 15s (9 clips Kling + ElevenLabs + Creatomate) ===
           const roteiro = roteiroTexts[2] || '';
           const letteringMatches = roteiro.match(/Lettering:\s*(.+)/g) || [];
-          const letterings = letteringMatches.map(l => l.replace(/Lettering:\s*/, '').trim());
+          const letterings = letteringMatches.map(l => l.replace(/Lettering:\s*/, '').replace(/\s*\(\d+\s*palavras?\)\s*/gi, '').replace(/\s*\[\d+\s*palavras?\]\s*/gi, '').trim());
           const narracaoMatches = roteiro.match(/Narra[cç][aã]o:\s*(.+)/g) || [];
-          const fullNarration = narracaoMatches.map(n => n.replace(/Narra[cç][aã]o:\s*/, '').trim()).join(' ') || 'Investimento inteligente no litoral de Florianopolis.';
+          const fullNarration = narracaoMatches.map(n => n.replace(/Narra[cç][aã]o:\s*/, '').replace(/\s*\(\d+\s*palavras?\)\s*/gi, '').replace(/\s*\[\d+\s*palavras?\]\s*/gi, '').trim()).join(' ') || 'Investimento inteligente no litoral de Florianopolis.';
 
           // 9 clips: 3 por categoria, cortes rapidos dentro de cada bloco de 5s
           const CENAS = [
@@ -1020,9 +1020,9 @@ ABSOLUTE RULES:
           // 5 cenas: Monica intro(8s) → Fachada(5s) → Rooftop(5s) → Localização(5s) → Monica CTA(7s)
           // 2 Kling 3.0 Pro (Monica) + 3 Kling v2.1 (cenas) = ~$2.24 total
           const roteiro = roteiroTexts[3] || '';
-          const falas = (roteiro.match(/Monica fala:\s*"([^"]+)"/g) || []).map(f => f.replace(/Monica fala:\s*"/, '').replace(/"$/, ''));
+          const falas = (roteiro.match(/Monica fala:\s*"([^"]+)"/g) || []).map(f => f.replace(/Monica fala:\s*"/, '').replace(/"$/, '').replace(/\s*\(\d+\s*palavras?\)\s*/gi, '').replace(/\s*\[\d+\s*palavras?\]\s*/gi, '').trim());
           const letteringMatches = roteiro.match(/Lettering:\s*(.+)/g) || [];
-          const letterings = letteringMatches.map(l => l.replace(/Lettering:\s*/, '').trim());
+          const letterings = letteringMatches.map(l => l.replace(/Lettering:\s*/, '').replace(/\s*\(\d+\s*palavras?\)\s*/gi, '').replace(/\s*\[\d+\s*palavras?\]\s*/gi, '').trim());
           const fullNarration = falas.join(' ') || 'Eu sou a Monica, socia fundadora da Seazone.';
 
           // Foto da Monica = referência de ROSTO. Kling 3.0 Pro preserva o rosto e gera cena.
