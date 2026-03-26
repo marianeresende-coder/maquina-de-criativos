@@ -755,43 +755,51 @@ function Step3_Pipeline({ data, onReset }) {
 
       // --- PEÇA 2: NARRADO 15s (Kling + ElevenLabs) ---
       if (pn === 2 || pType.includes('narrado')) {
+        // Imagens do Drive como fallback caso o diretor não inclua driveImageUrl
+        const DRIVE_FALLBACK = [
+          'https://lh3.googleusercontent.com/d/1gr6pI4ElrZK0gM4pJi-QgHqlVc91-0Nn=s1920', // Fachada 1
+          'https://lh3.googleusercontent.com/d/1rkssZ7grxxozxe8xlKN0LVc0hw4p2vl5=s1920', // Rooftop 1
+          'https://lh3.googleusercontent.com/d/13e96WR2Bs95nz8-7K288DFDxPdTcKRp0=s1920', // Localização 1
+        ];
+
         // Gerar vídeos animados das cenas (Kling com imagem do Drive)
         let sceneDone = 0;
         const scenes = piece.scenes || [];
         for (const scene of scenes) {
           sceneDone++;
-          const imageUrl = scene.driveImageUrl;
-          const videoPrompt = scene.videoPrompt;
+          // Usar driveImageUrl do diretor, ou fallback na ordem fachada→rooftop→localização
+          const imageUrl = scene.driveImageUrl || DRIVE_FALLBACK[(sceneDone - 1) % DRIVE_FALLBACK.length];
+          const videoPrompt = scene.videoPrompt || scene.description || 'Slow cinematic zoom in, golden hour lighting, premium real estate';
 
-          if (imageUrl && videoPrompt) {
-            setGenProgress(`Peça 2 — Narrado: animando cena ${sceneDone}/${scenes.length} (Kling)...`);
-            try {
-              const res = await fetch('/api/generate-video', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                  prompt: videoPrompt,
-                  engine: scene.videoEngine || 'kling',
-                  imageUrl: imageUrl,
-                  format: '9:16',
-                }),
+          setGenProgress(`Peça 2 — Narrado: animando cena ${sceneDone}/${scenes.length} (Kling)...`);
+          try {
+            const res = await fetch('/api/generate-video', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                prompt: videoPrompt,
+                engine: scene.videoEngine || 'kling',
+                imageUrl: imageUrl,
+                format: '9:16',
+              }),
+            });
+            const result = await res.json();
+            if (result.url) {
+              allMedia.push({
+                piece: pn, scene: scene.sceneNumber || sceneDone,
+                engine: 'kling', type: 'video', url: result.url, prompt: videoPrompt,
               });
-              const result = await res.json();
-              if (result.url) {
-                allMedia.push({
-                  piece: pn, scene: scene.sceneNumber,
-                  engine: 'kling', type: 'video', url: result.url, prompt: videoPrompt,
-                });
-              }
-            } catch (err) {
-              allMedia.push({ piece: pn, scene: scene.sceneNumber, engine: 'kling', type: 'video', error: err.message });
+            } else {
+              allMedia.push({ piece: pn, scene: scene.sceneNumber || sceneDone, engine: 'kling', type: 'video', error: result.error || 'Sem URL no resultado' });
             }
-            setGeneratedImages([...allMedia]);
+          } catch (err) {
+            allMedia.push({ piece: pn, scene: scene.sceneNumber || sceneDone, engine: 'kling', type: 'video', error: err.message });
           }
+          setGeneratedImages([...allMedia]);
         }
 
         // Gerar narração (ElevenLabs)
-        const narrationText = scenes.map(s => s.narrationText).filter(Boolean).join(' ');
+        const narrationText = scenes.map(s => s.narrationText || s.lettering || '').filter(Boolean).join(' ');
         if (narrationText) {
           setGenProgress('Peça 2 — Narrado: gerando narração (voz Monica)...');
           try {
@@ -1047,51 +1055,64 @@ function Step3_Pipeline({ data, onReset }) {
 
                 {/* Show items */}
                 {pn === 1 ? (
-                  /* ESTÁTICO: imagem com overlay de texto + referência lado a lado */
+                  /* ESTÁTICO: imagem com overlay estilo Seazone + referência lado a lado */
                   <div>
                     <div className="grid grid-cols-2 gap-4">
-                      {/* Gerado — imagem do Drive com textos */}
+                      {/* Gerado — imagem do Drive com template Seazone */}
                       <div>
                         <p className="text-[10px] font-bold text-gray-500 mb-1 uppercase">Gerado</p>
                         {items.map((item, idx) => (
                           <div key={idx} className="relative rounded-lg overflow-hidden border border-gray-200" style={{aspectRatio: '9/16'}}>
                             <img src={item.url} alt="" className="w-full h-full object-cover" />
-                            {/* Overlay de textos */}
-                            <div className="absolute inset-0 flex flex-col justify-between p-4" style={{background: 'linear-gradient(to bottom, rgba(1,19,55,0.6) 0%, transparent 40%, transparent 60%, rgba(1,19,55,0.7) 100%)'}}>
-                              {/* Topo — Logo/Badge */}
-                              <div className="text-center">
-                                <span className="inline-block bg-white/20 backdrop-blur-sm text-white text-[8px] font-bold px-2 py-1 rounded-full uppercase tracking-wider">
-                                  Seazone SPOT
-                                </span>
-                              </div>
-                              {/* Centro — Headline + Dados */}
-                              <div className="text-center space-y-2">
+                            {/* Overlay Seazone — copiando hierarquia da referência */}
+                            <div className="absolute inset-0 flex flex-col justify-between p-3" style={{background: 'linear-gradient(180deg, rgba(1,19,55,0.75) 0%, rgba(1,19,55,0.15) 35%, rgba(1,19,55,0.1) 55%, rgba(1,19,55,0.8) 100%)'}}>
+
+                              {/* TOPO — Badge lançamento + Logo */}
+                              <div className="space-y-2">
+                                <div className="flex items-center justify-between">
+                                  <span className="text-white/90 text-[7px] font-bold uppercase tracking-widest">Seazone</span>
+                                  <span className="text-[7px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider" style={{backgroundColor: '#F1605D', color: 'white'}}>
+                                    Lançamento
+                                  </span>
+                                </div>
                                 {item.headline && (
-                                  <p className="font-display font-bold text-white text-lg leading-tight drop-shadow-lg">
+                                  <p className="font-display font-bold text-white text-base leading-snug drop-shadow-lg">
                                     {item.headline}
                                   </p>
                                 )}
-                                {item.subtitle && (
-                                  <p className="text-white/90 text-xs font-medium drop-shadow">
-                                    {item.subtitle}
-                                  </p>
-                                )}
+                              </div>
+
+                              {/* CENTRO — Caixa de dados (estilo referência) */}
+                              <div className="space-y-2">
+                                {/* Caixa azul ROI */}
                                 {item.dataOverlay && (
-                                  <p className="text-white/80 text-[10px] drop-shadow">
-                                    {item.dataOverlay}
-                                  </p>
+                                  <div className="rounded-lg p-2.5 space-y-1.5" style={{backgroundColor: 'rgba(1,19,55,0.85)', backdropFilter: 'blur(8px)'}}>
+                                    {item.dataOverlay.split(',').map((dado, i) => (
+                                      <div key={i} className="flex items-center gap-2">
+                                        <span className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{backgroundColor: '#F1605D'}}></span>
+                                        <span className="text-white text-[9px] font-medium">{dado.trim()}</span>
+                                      </div>
+                                    ))}
+                                  </div>
                                 )}
-                                {item.lettering && !item.headline && (
-                                  <p className="font-display font-bold text-white text-sm leading-tight drop-shadow-lg">
-                                    {item.lettering}
-                                  </p>
+                                {/* Pin de localização */}
+                                {item.subtitle && (
+                                  <div className="flex items-center gap-1.5 bg-white/15 backdrop-blur-sm rounded-full px-2.5 py-1 w-fit">
+                                    <svg width="10" height="10" viewBox="0 0 24 24" fill="#F1605D"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5a2.5 2.5 0 010-5 2.5 2.5 0 010 5z"/></svg>
+                                    <span className="text-white text-[8px] font-medium">{item.subtitle}</span>
+                                  </div>
                                 )}
                               </div>
-                              {/* Base — CTA */}
+
+                              {/* BASE — CTA */}
                               <div className="text-center">
-                                {item.cta && (
-                                  <span className="inline-block text-white font-bold text-[10px] px-4 py-1.5 rounded-full" style={{backgroundColor: '#F1605D'}}>
+                                {item.cta ? (
+                                  <span className="inline-block text-white font-bold text-[9px] px-5 py-1.5 rounded-full shadow-lg" style={{backgroundColor: '#F1605D'}}>
                                     {item.cta}
+                                  </span>
+                                ) : (
+                                  <span className="inline-block text-white font-bold text-[9px] px-5 py-1.5 rounded-full shadow-lg" style={{backgroundColor: '#F1605D'}}>
+                                    Saiba mais
                                   </span>
                                 )}
                               </div>
@@ -1109,7 +1130,7 @@ function Step3_Pipeline({ data, onReset }) {
                             className="w-full h-full object-cover"
                           />
                         </div>
-                        <p className="text-[10px] text-orange-600 mt-1">A hierarquia de mensagens, ícones e posições deve seguir esta referência</p>
+                        <p className="text-[10px] text-orange-600 mt-1">Hierarquia: badge topo, headline, caixa dados com bullets, pin localização, CTA base</p>
                       </div>
                     </div>
                   </div>
