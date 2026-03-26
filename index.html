@@ -625,16 +625,17 @@ async function safeFetchOnce(url, options) {
   }
 }
 
-// generateVideo: chama generate-video e faz polling se necessário (fal.ai queue)
+// generateVideo: submete job no fal.ai e faz polling até completar
 async function generateVideo(body) {
   const r = await safeFetchOnce('/api/generate-video', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
   if (r.url) return r;
-  if (r.status === 'processing' && r.requestId && r.falModel) {
-    // Polling do fal.ai queue
-    const maxWait = 600000; // 10 min max
+  if (r.error) return r;
+  if (r.requestId && r.falModel) {
+    // Polling do fal.ai queue (até 10 min)
+    const maxWait = 600000;
     const start = Date.now();
     while (Date.now() - start < maxWait) {
-      await new Promise(res => setTimeout(res, 10000));
+      await new Promise(res => setTimeout(res, 8000));
       const poll = await safeFetchOnce(`/api/poll-video?id=${r.requestId}&model=${encodeURIComponent(r.falModel)}`, {});
       if (poll.url) return poll;
       if (poll.status === 'failed') return { error: poll.error || 'Video falhou no fal.ai' };
