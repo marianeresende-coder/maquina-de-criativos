@@ -1,30 +1,56 @@
 const SYSTEM_PROMPT = `Você é o Agente 03 — Validador de Roteiro da Máquina de Criativos Seazone.
 
-Sua tarefa é validar UM roteiro de peça criativa contra o briefing original.
+Sua tarefa é validar UM roteiro contra o briefing original. Seja RIGOROSO.
 
-# CHECKLIST DE VALIDAÇÃO
-Aplique TODOS os checks:
+# CHECKLIST DE VALIDAÇÃO — aplicar TODOS:
 
-[A] PONTOS FORTES OBRIGATÓRIOS — cada ponto forte do briefing deve aparecer
-[B] HIERARQUIA — pontos fortes de maior posição devem ter mais destaque
-[C] DO's — cada DO deve estar reforçado em pelo menos uma cena
-[D] DON'Ts — TOLERÂNCIA ZERO. Qualquer violação = reprovação imediata
-[E] INSTRUÇÕES VISUAIS — sem escurecer, sem molduras, sem borrar, pin de SPOT presente
-[F] FORMATO — campos corretos (Cena/Lettering/Roteiro para vídeos, Headline/Subtexto/Visual para estática)
-[G] DADOS FINANCEIROS — números EXATOS do briefing, sem arredondar, sem inventar
-[H] MONICA — (só peças 1 e 2) posicionada como sócia fundadora, tom de autoridade
-[I] DURAÇÃO — 15s máx 3 cenas, 30s entre 3-6 cenas
+[A] PONTOS FORTES OBRIGATÓRIOS
+- Ler "estrutura_criativos.pontos_fortes_obrigatorios" do briefing
+- Ler "pontos_fortes.hierarquia" do briefing
+- CADA ponto forte obrigatório DEVE aparecer no roteiro
+- Se algum ponto forte está ausente → REPROVAR e listar qual falta
 
-# FORMATO DE RESPOSTA
-Responda em JSON válido:
+[B] DOs OBRIGATÓRIOS
+- Ler "dos.diretrizes" do briefing
+- CADA DO DEVE estar contemplado em pelo menos uma cena
+- Se algum DO está ausente → REPROVAR e listar qual falta
 
-Se aprovada:
-{"approved": true, "checks": {"A": "ok", "B": "ok", ...}, "summary": "Peça aprovada. [breve comentário]"}
+[C] DON'Ts — TOLERÂNCIA ZERO
+- Ler "donts.diretrizes" do briefing
+- Se QUALQUER DON'T aparecer no roteiro → REPROVAR imediatamente
 
-Se reprovada:
-{"approved": false, "checks": {"A": "ok", "B": "ok", "D": "FALHA: [descrição]", ...}, "errors": ["erro 1", "erro 2"], "fixes": ["correção 1", "correção 2"], "summary": "Peça reprovada. [motivos]"}
+[D] DADOS FINANCEIROS EXATOS
+- Cruzar CADA número do roteiro com "dados_financeiros" do briefing
+- ROI, rentabilidade, valorização, rendimento mensal DEVEM ser EXATOS
+- Se qualquer dado estiver arredondado ou inventado → REPROVAR
 
-RESPONDA APENAS O JSON, sem markdown, sem texto antes ou depois.`;
+[E] INSTRUÇÕES VISUAIS
+- Ler "estrutura_criativos.instrucoes_visuais_obrigatorias"
+- Verificar se o roteiro respeita todas (sem escurecer, sem moldura, etc.)
+
+[F] FORMATO
+- Vídeos: cada cena deve ter Cena/Visual + Lettering + Roteiro/Narração
+- Estática: deve ter Headline + Subtexto + Dados + CTA
+- Lettering máximo 7 palavras por tela
+
+[G] MONICA (só peça 3 — apresentadora)
+- Posicionada como sócia fundadora da Seazone
+- Tom de autoridade (não atriz)
+- Falas naturais em português brasileiro
+
+[H] DURAÇÃO
+- Peça 2 (narrado 15s): máximo 3 cenas
+- Peça 3 (apresentadora 30s): entre 3 e 5 cenas
+
+# FORMATO DE RESPOSTA — JSON válido:
+
+Se APROVADA:
+{"approved": true, "checks": {"A": "ok — X/X pontos fortes", "B": "ok — X/X DOs", "C": "ok", "D": "ok", "E": "ok", "F": "ok", "G": "ok ou N/A", "H": "ok"}, "summary": "Roteiro aprovado. [comentário breve]"}
+
+Se REPROVADA:
+{"approved": false, "checks": {"A": "FALHA: falta ponto forte X", "B": "ok", ...}, "errors": ["erro 1", "erro 2"], "fixes": ["incluir ponto forte X na cena Y", "corrigir ROI de 16% pra 16,40%"], "summary": "Roteiro reprovado. [motivos]"}
+
+RESPONDA APENAS O JSON.`;
 
 module.exports = async function handler(req, res) {
   if (req.method !== "POST") {
@@ -43,7 +69,43 @@ module.exports = async function handler(req, res) {
   }
 
   const briefingText = typeof briefing === "string" ? briefing : JSON.stringify(briefing, null, 2);
-  const userMessage = `# BRIEFING\n\n${briefingText}\n\n---\n\n# ROTEIRO DA PEÇA ${pieceNumber} PARA VALIDAR\n\n${roteiro}`;
+
+  // Extrair DOs e Pontos Fortes pra destacar no prompt
+  let checklistInfo = '';
+  try {
+    const b = typeof briefing === 'string' ? JSON.parse(briefing) : briefing;
+    if (b.dos?.diretrizes) {
+      checklistInfo += '\n\nDOs DO BRIEFING (TODOS devem estar no roteiro):\n';
+      b.dos.diretrizes.forEach((d, i) => {
+        checklistInfo += `  ${i + 1}. ${d.titulo || d}${d.descricao ? ': ' + d.descricao : ''}\n`;
+      });
+    }
+    if (b.donts?.diretrizes) {
+      checklistInfo += '\nDON\'Ts DO BRIEFING (NENHUM pode estar no roteiro):\n';
+      b.donts.diretrizes.forEach((d, i) => {
+        checklistInfo += `  ${i + 1}. ${d.titulo || d}\n`;
+      });
+    }
+    if (b.pontos_fortes?.hierarquia) {
+      checklistInfo += '\nPONTOS FORTES (TODOS devem aparecer):\n';
+      b.pontos_fortes.hierarquia.forEach((p, i) => {
+        checklistInfo += `  ${p.posicao || i + 1}. ${p.nome}: ${p.descricao || ''}\n`;
+      });
+    }
+    if (b.estrutura_criativos?.pontos_fortes_obrigatorios) {
+      checklistInfo += '\nPONTOS FORTES OBRIGATÓRIOS:\n';
+      b.estrutura_criativos.pontos_fortes_obrigatorios.forEach((p, i) => {
+        checklistInfo += `  ${i + 1}. ${typeof p === 'string' ? p : JSON.stringify(p)}\n`;
+      });
+    }
+    if (b.dados_financeiros) {
+      checklistInfo += '\nDADOS FINANCEIROS (verificar se EXATOS no roteiro):\n';
+      checklistInfo += JSON.stringify(b.dados_financeiros, null, 2) + '\n';
+    }
+  } catch {}
+
+  const pieceTypes = { 1: 'estático', 2: 'narrado 15s', 3: 'apresentadora 30s' };
+  const userMessage = `# BRIEFING\n\n${briefingText}${checklistInfo}\n\n---\n\n# ROTEIRO DA PEÇA ${pieceNumber} (${pieceTypes[pieceNumber]}) PARA VALIDAR\n\n${roteiro}\n\nValide este roteiro cruzando com TODOS os DOs, DON'Ts, pontos fortes e dados financeiros do briefing.`;
 
   try {
     const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
@@ -56,7 +118,7 @@ module.exports = async function handler(req, res) {
       },
       body: JSON.stringify({
         model: "anthropic/claude-sonnet-4",
-        max_tokens: 1000,
+        max_tokens: 1500,
         messages: [
           { role: "system", content: SYSTEM_PROMPT },
           { role: "user", content: userMessage },

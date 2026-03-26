@@ -5,17 +5,16 @@
 ---
 
 ### REGRA 1: SÃO 3 ENTREGÁVEIS. SÓ 3. NUNCA MAIS.
-1. **Peça Estática** — 1 imagem do Drive + dados do briefing como texto
-2. **Vídeo Narrado (15s)** — imagens do Drive animadas + narração (voz Monica)
-3. **Vídeo Apresentadora (30s)** — Monica gerada por Veo 3 + cenas animadas
+1. **Peça Estática** — gerada via GPT-5 Image (referência + dados do briefing)
+2. **Vídeo Narrado (15s)** — imagens do Drive animadas (Kling) + narração (ElevenLabs) + montagem (Creatomate)
+3. **Vídeo Apresentadora (30s)** — Monica (Veo 3) + cenas animadas (Kling) + narração (ElevenLabs) + montagem (Creatomate)
 
-### REGRA 2: NÃO GERAR IMAGENS NOVAS
-- **NUNCA chamar generate-image.js**
-- **NUNCA chamar Flux Pro ou Recraft**
-- As imagens REAIS já existem no Google Drive (URLs no agente 05)
-- Para vídeos: animar as imagens do Drive DIRETAMENTE via Kling
-- Para Monica: usar Veo 3 (text-to-video direto, sem gerar imagem)
-- Para estático: usar foto do Drive COMO ESTÁ
+### REGRA 2: IMAGENS — GPT-5 IMAGE PARA ESTÁTICO, DRIVE PARA VÍDEOS
+- **Estático**: gerado via GPT-5 Image (OpenRouter) com referência do Estático.png
+- **NUNCA chamar generate-image.js, Flux Pro ou Recraft**
+- As imagens REAIS do Drive são usadas para animação de vídeo (Kling)
+- Para Monica: usar Veo 3 (image-to-video com foto real)
+- Cada peça gera 2 versões para o usuário escolher
 
 ### REGRA 3: FLUXO SEQUENCIAL COM APROVAÇÃO
 ```
@@ -24,11 +23,11 @@ Roteiro aprovado → Estático (aprovar) → Narrado (aprovar) → Apresentadora
 - 1 peça por vez. Esperar aprovação antes da próxima.
 - Se reprovado, refazer SÓ o que foi apontado.
 
-### REGRA 4: MÁXIMO DE CHAMADAS DE API
-- Estático: **0 chamadas** (usa foto do Drive direto)
-- Narrado: **~4 chamadas** (3 Kling + 1 ElevenLabs)
-- Apresentadora: **~2 chamadas** (Veo 3)
-- **TOTAL MÁXIMO: ~7 chamadas. Se passar de 12, PARE.**
+### REGRA 4: MÁXIMO DE CHAMADAS DE API (por versão)
+- Estático: **1 chamada** (GPT-5 Image via OpenRouter)
+- Narrado: **~4 chamadas** (3 Kling + 1 ElevenLabs + 1 Creatomate)
+- Apresentadora: **~7 chamadas** (3 Veo 3 + 3 Kling + 1 ElevenLabs + 1 Creatomate)
+- **x2 versões de cada = ~24 chamadas total no pacote completo**
 
 ### REGRA 5: IDIOMA = PORTUGUÊS DO BRASIL. SEMPRE.
 - Narração, falas da Monica, textos: TUDO em português brasileiro
@@ -56,10 +55,12 @@ Roteiro aprovado → Estático (aprovar) → Narrado (aprovar) → Apresentadora
 **Para Veo 3**: usar image-to-video com uma dessas fotos como base (não text-to-video).
 Assim o vídeo mantém o rosto REAL da Monica.
 
-### REGRA 8: PEÇA ESTÁTICA = REFERÊNCIA
-- A peça estática de referência está em `15EKv4-VAy6CSfyA8vpKuvu_TUwq27ex4` (Estático.png)
-- SEGUIR EXATAMENTE a hierarquia de mensagens dessa referência
-- 1 imagem de fundo (localização do Drive) + dados do briefing como overlay
+### REGRA 8: PEÇA ESTÁTICA = GPT-5 IMAGE COM REFERÊNCIA
+- A peça estática é GERADA via GPT-5 Image (model: openai/gpt-5-image no OpenRouter)
+- A referência (Estático.png) é passada como imagem de input para o GPT-5 replicar o layout
+- Os dados do briefing (headline, dados financeiros, CTA) são passados no prompt
+- GPT-5 gera a imagem completa com layout + dados — NÃO precisa de overlay no frontend
+- Gera 2 versões para o usuário escolher qual aprovar
 - NÃO gerar vídeo para o estático. É UMA IMAGEM.
 
 ---

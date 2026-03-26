@@ -1,7 +1,7 @@
 const SYSTEM_PROMPT = `Você é o Agente 02 — Roteirista da Máquina de Criativos Seazone.
 
 # CONTEXTO SEAZONE
-A maior empresa de gestão de aluguel por temporada do Brasil. Uma proptech que une construção de empreendimentos próprios (SPOTs) + gestão operacional completa + tecnologia proprietária.
+A maior empresa de gestão de aluguel por temporada do Brasil. Proptech que une construção de empreendimentos próprios (SPOTs) + gestão operacional completa + tecnologia proprietária.
 
 # TOM DE VOZ
 - Profissional, acessível e orientado a resultados
@@ -15,22 +15,40 @@ A maior empresa de gestão de aluguel por temporada do Brasil. Uma proptech que 
 - Para vídeos: NÃO escurecer imagem, NÃO molduras, NÃO borrar laterais, SEMPRE pin de SPOT
 
 # SUA TAREFA
-Você gera roteiros de criativos de marketing para empreendimentos Seazone.
-Gere APENAS a peça solicitada, no formato exato pedido. Seja direto e objetivo.
+Gerar roteiros de criativos de marketing para empreendimentos Seazone.
+Gere APENAS a peça solicitada, no formato exato pedido.
 NUNCA invente dados financeiros — use APENAS os fornecidos no briefing.
 
 # REGRA ABSOLUTA: SÃO 3 PEÇAS. SÓ 3.
 1. Peça Estática (pieceNumber=1)
 2. Vídeo Narrado 15s (pieceNumber=2)
 3. Vídeo Apresentadora 30s (pieceNumber=3)
-NÃO existe peça 4 ou 5. NÃO criar versões alternativas.`;
+
+# REGRA CRÍTICA: LER E USAR "estrutura_criativos" DO BRIEFING
+O briefing contém uma seção chamada "estrutura_criativos". Você DEVE:
+- Ler "pontos_fortes_obrigatorios" e incluir TODOS no roteiro
+- Ler "instrucoes_visuais_obrigatorias" e seguir TODAS nas cenas
+- Ler "formatos" pra entender os formatos esperados
+- TODOS os itens de "dos.diretrizes" DEVEM aparecer no roteiro (pelo menos 1 vez cada)
+- TODOS os itens de "pontos_fortes.hierarquia" DEVEM aparecer (na ordem de prioridade)
+- Nenhum item de "donts.diretrizes" pode aparecer
+
+# CHECKLIST ANTES DE ENTREGAR
+Antes de finalizar o roteiro, verificar:
+- [ ] Cada ponto forte obrigatório aparece?
+- [ ] Cada DO aparece em pelo menos uma cena?
+- [ ] Nenhum DON'T aparece?
+- [ ] Dados financeiros são EXATOS do briefing (não arredondados)?
+- [ ] Lettering tem máximo 7 palavras por tela?
+- [ ] CTA claro na cena final?`;
 
 const PIECE_PROMPTS = {
   1: `Gere o roteiro da PEÇA 1 — Peça Estática.
 
+LEIA a seção "estrutura_criativos" do briefing antes de começar.
+
 A imagem de fundo será uma foto REAL de localização do Google Drive (NÃO gerar imagem por IA).
-Os dados do briefing serão sobrepostos como texto/lettering.
-Siga EXATAMENTE a hierarquia de mensagens da peça estática de referência.
+Os dados do briefing serão sobrepostos como texto/lettering na imagem.
 
 Formato EXATO:
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -38,25 +56,35 @@ PEÇA ESTÁTICA
 Empreendimento: [nome do projeto]
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-  Imagem de fundo: Localização (foto real do Google Drive — NÃO gerar por IA)
-  Headline: [frase de impacto com dado financeiro]
-  Subtexto: [dado de suporte ou contexto]
-  CTA: [chamada para ação]
-  Dados para overlay: [listar dados exatos do briefing: ROI, rentabilidade, preço, nome]
+  Imagem de fundo: Localização (foto real do Google Drive)
+  Headline: [frase de impacto com dado financeiro principal — ROI ou rentabilidade]
+  Subtexto: [localização + contexto do empreendimento]
+  Dados para overlay:
+    - [dado 1 — ex: ROI 16,40%]
+    - [dado 2 — ex: Rentabilidade líquida X%]
+    - [dado 3 — ex: Rendimento mensal R$ X.XXX]
+    - [dado 4 — ex: Valorização estimada X%]
+  CTA: [chamada para ação direta]
+
+  DOs incluídos: [listar quais DOs do briefing foram contemplados]
+  Pontos fortes incluídos: [listar quais pontos fortes aparecem]
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 Regras:
 - Deve funcionar sozinha (sem contexto de vídeo)
-- Headline com dado financeiro do briefing
-- Incluir pelo menos 2 pontos fortes
-- Imagem de fundo = foto de localização do Drive
-- Respeitar DO's e DON'Ts do briefing`,
+- Headline OBRIGATÓRIO com dado financeiro do briefing
+- TODOS os pontos fortes obrigatórios devem aparecer nos dados
+- TODOS os DOs devem estar contemplados
+- Nenhum DON'T pode aparecer
+- Dados financeiros EXATOS (nunca arredondar)`,
 
   2: `Gere o roteiro da PEÇA 2 — Vídeo Narrado (15s).
 
+LEIA a seção "estrutura_criativos" do briefing antes de começar.
+
 SEM apresentadora — só visual + narração em off + lettering.
 As imagens serão fotos REAIS do Drive (fachada, rooftop, localização) animadas por IA.
-A narração será feita com a voz clonada da Monica via ElevenLabs.
+A narração será feita com a voz clonada da Monica via ElevenLabs. Idioma: PORTUGUÊS BRASILEIRO.
 
 Formato EXATO:
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -65,10 +93,10 @@ Empreendimento: [nome do projeto]
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 CENA 1:
-  Visual: [qual imagem do Drive usar — fachada, rooftop ou localização]
+  Visual: [qual imagem do Drive — fachada, rooftop ou localização]
   Movimento: [como animar — slow zoom in, pan right, tilt up, etc.]
-  Lettering: [texto na tela]
-  Narração: [texto exato da narração em off — tom profissional, confiante]
+  Lettering: [texto na tela — máx 7 palavras]
+  Narração: [texto exato em português que a Monica narra em off]
 
 CENA 2:
   Visual: [...]
@@ -76,28 +104,35 @@ CENA 2:
   Lettering: [...]
   Narração: [...]
 
-CENA FINAL:
+CENA 3 (FINAL):
   Visual: [...]
   Movimento: [...]
   Lettering: [CTA]
   Narração: [narração final com CTA]
+
+DOs incluídos: [listar]
+Pontos fortes incluídos: [listar]
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 Regras:
-- Máximo 3 cenas (é 15 segundos!)
-- Cada cena DEVE especificar qual imagem do Drive usar (fachada, rooftop ou localização)
-- Narração: tom profissional, confiante, ritmo claro
-- Impacto rápido — gancho visual forte + dado + CTA
+- MÁXIMO 3 cenas (é 15 segundos!)
+- Cada cena especifica qual imagem do Drive usar
+- Narração em PORTUGUÊS BRASILEIRO, tom profissional e confiante
+- Gancho forte na cena 1, dados na cena 2, CTA na cena 3
 - Lettering: máximo 7 palavras por tela
-- Seguir hierarquia dos pontos fortes
-- Respeitar DO's e DON'Ts do briefing`,
+- TODOS os pontos fortes obrigatórios devem aparecer
+- TODOS os DOs devem estar contemplados
+- Nenhum DON'T pode aparecer
+- Dados financeiros EXATOS`,
 
   3: `Gere o roteiro da PEÇA 3 — Vídeo Apresentadora (30s).
 
+LEIA a seção "estrutura_criativos" do briefing antes de começar.
+
 A apresentadora é Monica Medeiros, CCO e sócia fundadora da Seazone.
 SEMPRE posicioná-la como dona/sócia fundadora. Fala natural, autoridade + proximidade.
-O vídeo da Monica será gerado por IA (Veo 3), intercalado com cenas do empreendimento
-(fotos REAIS do Drive animadas por Kling).
+O vídeo da Monica será gerado por IA, intercalado com cenas do empreendimento
+(fotos REAIS do Drive animadas). Idioma: PORTUGUÊS BRASILEIRO.
 
 Formato EXATO:
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -107,35 +142,44 @@ Apresentadora: Monica Medeiros — CCO e sócia fundadora da Seazone
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 CENA 1 — MONICA:
-  Monica fala: "[fala exata da Monica]"
+  Monica fala: "[fala exata em português — como sócia fundadora]"
   Lettering: [texto na tela]
 
 CENA 2 — EMPREENDIMENTO:
-  Visual: [qual imagem do Drive usar — fachada, rooftop ou localização]
+  Visual: [qual imagem do Drive — fachada, rooftop ou localização]
   Movimento: [como animar]
   Lettering: [dados/texto na tela]
 
 CENA 3 — MONICA:
-  Monica fala: "[fala exata]"
+  Monica fala: "[fala com dados financeiros integrados naturalmente]"
   Lettering: [...]
 
-...
+CENA 4 — EMPREENDIMENTO:
+  Visual: [...]
+  Movimento: [...]
+  Lettering: [dados]
 
-CENA FINAL:
+CENA 5 (FINAL) — MONICA:
   Monica fala: "[CTA final]"
   Lettering: [CTA]
+
+DOs incluídos: [listar]
+Pontos fortes incluídos: [listar]
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 Regras:
 - Entre 3 e 5 cenas
 - Arco narrativo: gancho → dados → CTA
-- Intercalar: cenas da Monica falando ↔ cenas com imagens do empreendimento
-- Cenas do empreendimento: especificar qual imagem do Drive usar
-- Dados financeiros integrados naturalmente na fala
+- Intercalar: cenas da Monica ↔ cenas do empreendimento
+- Monica SEMPRE como sócia fundadora (não atriz)
+- Fala NATURAL em português brasileiro, como dona do negócio
+- Dados financeiros integrados na fala (não parecer leitura)
 - CTA claro na cena final
 - Lettering: máximo 7 palavras por tela
-- Seguir hierarquia dos pontos fortes
-- Respeitar DO's e DON'Ts do briefing`,
+- TODOS os pontos fortes obrigatórios devem aparecer
+- TODOS os DOs devem estar contemplados
+- Nenhum DON'T pode aparecer
+- Dados financeiros EXATOS`,
 };
 
 module.exports = async function handler(req, res) {
@@ -156,7 +200,56 @@ module.exports = async function handler(req, res) {
 
   const briefingText = typeof briefing === "string" ? briefing : JSON.stringify(briefing, null, 2);
   const piecePrompt = PIECE_PROMPTS[pieceNumber];
-  const userMessage = `# BRIEFING DO EMPREENDIMENTO\n\n${briefingText}\n\n---\n\n${piecePrompt}`;
+
+  // Extrair seções importantes do briefing pra destacar no prompt
+  let estruturaInfo = '';
+  try {
+    const b = typeof briefing === 'string' ? JSON.parse(briefing) : briefing;
+    if (b.estrutura_criativos) {
+      estruturaInfo += '\n\n# ESTRUTURA DOS CRIATIVOS (SEÇÃO DO BRIEFING — USAR COMO BASE)\n';
+      if (b.estrutura_criativos.pontos_fortes_obrigatorios) {
+        estruturaInfo += '\nPONTOS FORTES OBRIGATÓRIOS (DEVEM aparecer no roteiro):\n';
+        b.estrutura_criativos.pontos_fortes_obrigatorios.forEach((p, i) => {
+          estruturaInfo += `  ${i + 1}. ${typeof p === 'string' ? p : JSON.stringify(p)}\n`;
+        });
+      }
+      if (b.estrutura_criativos.instrucoes_visuais_obrigatorias) {
+        estruturaInfo += '\nINSTRUÇÕES VISUAIS OBRIGATÓRIAS:\n';
+        b.estrutura_criativos.instrucoes_visuais_obrigatorias.forEach((v, i) => {
+          estruturaInfo += `  ${i + 1}. ${typeof v === 'string' ? v : JSON.stringify(v)}\n`;
+        });
+      }
+      if (b.estrutura_criativos.formatos) {
+        estruturaInfo += '\nFORMATOS:\n';
+        b.estrutura_criativos.formatos.forEach((f, i) => {
+          estruturaInfo += `  ${i + 1}. ${typeof f === 'string' ? f : JSON.stringify(f)}\n`;
+        });
+      }
+    }
+    if (b.dos?.diretrizes) {
+      estruturaInfo += '\nDOs (TODOS devem aparecer no roteiro):\n';
+      b.dos.diretrizes.forEach((d, i) => {
+        const titulo = d.titulo || d;
+        const desc = d.descricao || '';
+        estruturaInfo += `  ${i + 1}. ${titulo}${desc ? ': ' + desc : ''}\n`;
+      });
+    }
+    if (b.donts?.diretrizes) {
+      estruturaInfo += '\nDON\'Ts (NENHUM pode aparecer no roteiro):\n';
+      b.donts.diretrizes.forEach((d, i) => {
+        const titulo = d.titulo || d;
+        estruturaInfo += `  ${i + 1}. ${titulo}\n`;
+      });
+    }
+    if (b.pontos_fortes?.hierarquia) {
+      estruturaInfo += '\nHIERARQUIA DE PONTOS FORTES (incluir na ordem):\n';
+      b.pontos_fortes.hierarquia.forEach((p, i) => {
+        estruturaInfo += `  ${p.posicao || i + 1}. ${p.nome}: ${p.descricao || ''}\n`;
+      });
+    }
+  } catch {}
+
+  const userMessage = `# BRIEFING DO EMPREENDIMENTO\n\n${briefingText}${estruturaInfo}\n\n---\n\n${piecePrompt}`;
 
   // Set up SSE streaming
   res.setHeader("Content-Type", "text/event-stream");

@@ -608,50 +608,50 @@ function Step3_Pipeline({ data, onReset }) {
   const [roteiroTexts, setRoteiroTexts] = useState({});
   const roteirosTimer = useTimer(completedPieces.size < 3);
 
-  // --- Phase 2: Direction (Agent 04) ---
-  const [phase, setPhase] = useState('roteiros'); // roteiros, direction, creatives, validation, done
-  const [direction, setDirection] = useState(null);
-  const [dirStatus, setDirStatus] = useState('idle');
-  const dirTimer = useTimer(dirStatus === 'running');
-
-  // --- Phase 3: Image generation (Agent 05) ---
-  const [generatedImages, setGeneratedImages] = useState([]);
+  // --- Phase 2: Creative generation ---
+  const [phase, setPhase] = useState('roteiros');
   const [genStatus, setGenStatus] = useState('idle');
   const [genProgress, setGenProgress] = useState('');
   const genTimer = useTimer(genStatus === 'running');
 
-  // --- Phase 4: Validation (Agent 06) ---
-  const [finalValidation, setFinalValidation] = useState(null);
-  const [valStatus, setValStatus] = useState('idle');
-  const valTimer = useTimer(valStatus === 'running');
+  // --- Results per piece (2 versions each) ---
+  const [results, setResults] = useState({ 1: [], 2: [], 3: [] });
+  const [pieceErrors, setPieceErrors] = useState({ 1: [], 2: [], 3: [] });
 
-  // --- Approval, Reject & Save ---
+  // --- Approval & Save ---
   const [approvedPieces, setApprovedPieces] = useState({});
   const [savingPiece, setSavingPiece] = useState(null);
-  const [rejectingPiece, setRejectingPiece] = useState(null);
   const [regeneratingPiece, setRegeneratingPiece] = useState(null);
 
-  const handleApprove = async (pieceNum, mediaItem) => {
+  // --- Imagens hardcoded do Drive ---
+  const DRIVE = {
+    fachada: 'https://lh3.googleusercontent.com/d/1gr6pI4ElrZK0gM4pJi-QgHqlVc91-0Nn=s1920',
+    rooftop: 'https://lh3.googleusercontent.com/d/1rkssZ7grxxozxe8xlKN0LVc0hw4p2vl5=s1920',
+    localizacao: 'https://lh3.googleusercontent.com/d/13e96WR2Bs95nz8-7K288DFDxPdTcKRp0=s1920',
+    monica: 'https://lh3.googleusercontent.com/d/1fnk4XbJ3vtkrrM5f0RAbTMSTFdOatsC9=s1920',
+    refEstatico: 'https://lh3.googleusercontent.com/d/13G7xGya7gVAfP_EVTdOxQKoM5TvAU230=s1920',
+  };
+
+  // --- Aprovar uma versão ---
+  const handleApprove = async (pieceNum, item) => {
     const pieceTypes = { 1: 'estatico', 2: 'narrado', 3: 'apresentadora' };
     setSavingPiece(pieceNum);
     try {
+      const ext = item.type === 'video' ? 'mp4' : 'png';
       const res = await fetch('/api/save-approved', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          fileUrl: mediaItem.url,
+          fileUrl: item.url,
           pieceNumber: pieceNum,
           pieceType: pieceTypes[pieceNum],
-          projectName: projectName,
-          fileName: mediaItem.type === 'audio' ? 'narracao.mp3' : `peca-${pieceNum}-cena-${mediaItem.scene}.${mediaItem.type === 'video' ? 'mp4' : 'png'}`,
+          projectName,
+          fileName: `${pieceTypes[pieceNum]}-v${item.version}.${ext}`,
         }),
       });
       const result = await res.json();
       if (result.url) {
-        setApprovedPieces(prev => ({
-          ...prev,
-          [pieceNum]: [...(prev[pieceNum] || []), { ...mediaItem, savedUrl: result.url, savedAt: result.savedAt }],
-        }));
+        setApprovedPieces(prev => ({ ...prev, [pieceNum]: { ...item, savedUrl: result.url } }));
       }
     } catch (err) {
       alert('Erro ao salvar: ' + err.message);
@@ -659,34 +659,16 @@ function Step3_Pipeline({ data, onReset }) {
     setSavingPiece(null);
   };
 
-  const handleApproveAll = async (pieceNum) => {
-    const items = generatedImages.filter(i => i.url && i.piece === pieceNum);
-    for (const item of items) {
-      await handleApprove(pieceNum, item);
-    }
-  };
-
+  // --- Reprovar e refazer ---
   const handleReject = async (pieceNum) => {
     setRegeneratingPiece(pieceNum);
-    // Remove os itens antigos desta peça
-    setGeneratedImages(prev => prev.filter(i => i.piece !== pieceNum));
-
-    // Buscar a direção da peça novamente e re-executar
-    const pieceDir = (direction?.pieces || []).find(p =>
-      p.pieceNumber === pieceNum || (pieceNum === 1 && (p.type || '').includes('estatico')) ||
-      (pieceNum === 2 && (p.type || '').includes('narrado')) ||
-      (pieceNum === 3 && (p.type || '').includes('apresentadora'))
-    );
-
-    if (pieceDir) {
-      // Re-executar só essa peça
-      const tempDir = { pieces: [pieceDir] };
-      await runCreatives(tempDir);
-    }
+    setResults(prev => ({ ...prev, [pieceNum]: [] }));
+    setPieceErrors(prev => ({ ...prev, [pieceNum]: [] }));
+    await generatePiece(pieceNum);
     setRegeneratingPiece(null);
   };
 
-  // Collect roteiro texts from PieceCardWrappers
+  // --- Roteiro helpers ---
   const handlePieceComplete = useCallback((pieceNum, text) => {
     setRoteiroTexts(prev => ({ ...prev, [pieceNum]: text }));
   }, []);
@@ -701,328 +683,178 @@ function Step3_Pipeline({ data, onReset }) {
 
   const allRoteiros = completedPieces.size >= 3;
 
-  // Auto-start Agent 04 when roteiros done
+  // When all roteiros done, move to generation
   useEffect(() => {
     if (allRoteiros && phase === 'roteiros') {
-      setPhase('direction');
-      runDirection();
+      setPhase('generating');
+      generateAllPieces();
     }
   }, [allRoteiros]);
 
-  // --- Agent 04: Generate direction (1 peça por vez, sequencial) ---
-  const runDirection = async () => {
-    setDirStatus('running');
-    try {
-      const allPieces = [];
-
-      // Gerar direção para cada peça sequencialmente (1, 2, 3)
-      for (let pn = 1; pn <= 3; pn++) {
-        setGenProgress(`Agente 04: gerando direção da peça ${pn}/3...`);
-        const res = await fetch('/api/generate-direction', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            briefing: data,
-            roteiro: roteiroTexts[pn] || '',
-            pieceNumber: pn,
-          }),
-        });
-        const result = await res.json();
-        if (!res.ok) throw new Error(result.error || `Erro no Agente 04 peça ${pn}`);
-        // Garantir que pieceNumber e type estão setados
-        const pieceTypes = { 1: 'estatico', 2: 'narrado', 3: 'apresentadora' };
-        result.pieceNumber = pn;
-        result.type = result.type || pieceTypes[pn];
-        // Garantir que scenes tem sceneNumber
-        (result.scenes || []).forEach((s, i) => { s.sceneNumber = s.sceneNumber || (i + 1); });
-        allPieces.push(result);
-      }
-
-      const fullDirection = { pieces: allPieces };
-      setDirection(fullDirection);
-      setDirStatus('success');
-      setPhase('creatives');
-      runCreatives(fullDirection);
-    } catch (err) {
-      setDirStatus('error');
-      setGenProgress('Erro: ' + err.message);
+  // --- Generate all 3 pieces (2 versions each) ---
+  const generateAllPieces = async () => {
+    setGenStatus('running');
+    for (let pn = 1; pn <= 3; pn++) {
+      await generatePiece(pn);
     }
+    setGenStatus('success');
+    setPhase('approval');
+    setGenProgress('Todas as pecas geradas. Revise e aprove.');
   };
 
-  // --- Agent 05: Execute creatives (1 peça por vez, sequencial) ---
-  const runCreatives = async (dir) => {
-    setGenStatus('running');
-    const pieces = dir.pieces || [];
-    const allMedia = [];
+  // --- Generate 2 versions of 1 piece ---
+  const generatePiece = async (pn) => {
+    const names = { 1: 'Estatico', 2: 'Narrado', 3: 'Apresentadora' };
+    const vers = [];
+    const errs = [];
 
-    // TRAVA DE CRÉDITO: máximo de chamadas pagas por execução
-    const MAX_API_CALLS = 10; // estático(1) + narrado(3 kling + 1 elevenlabs) + apresentadora(1 veo3 + 2 kling) = 8
-    let apiCallCount = 0;
-    const canCallAPI = () => {
-      if (apiCallCount >= MAX_API_CALLS) {
-        setGenProgress(`⛔ LIMITE DE ${MAX_API_CALLS} CHAMADAS ATINGIDO. Parando pra economizar créditos.`);
-        return false;
-      }
-      apiCallCount++;
-      return true;
-    };
+    for (let v = 1; v <= 2; v++) {
+      try {
+        if (pn === 1) {
+          // === ESTATICO (GPT-5 Image via OpenRouter) ===
+          setGenProgress(`${names[pn]} v${v} — gerando via GPT-5 Image...`);
+          const roteiro = roteiroTexts[1] || '';
+          const hl = (roteiro.match(/Headline:\s*(.+)/) || [])[1] || 'Investimento inteligente';
+          const sub = (roteiro.match(/Subtexto:\s*(.+)/) || [])[1] || 'Campeche, Florianopolis';
+          const cta = (roteiro.match(/CTA:\s*(.+)/) || [])[1] || 'Saiba mais';
+          const dadosBlock = (roteiro.match(/Dados para overlay:\s*([\s\S]*?)(?=\n\s*CTA:|DOs|$)/) || [])[1] || '';
+          const dados = dadosBlock.trim().replace(/\n\s*-\s*/g, ', ').replace(/^-\s*/, '');
 
-    for (const piece of pieces) {
-      const pn = piece.pieceNumber;
-      const pType = piece.type || '';
+          const prompt = `Gere uma imagem de anuncio profissional de marketing imobiliario no formato 9:16 (vertical, story). REPLIQUE EXATAMENTE o layout da imagem de referencia anexada: badge "Lancamento" no topo direito, headline grande "${hl}" em branco, card azul escuro com bullets coral mostrando os dados: ${dados}. Pin coral de localizacao "${sub}". Botao CTA coral "${cta}" no rodape. Fundo: foto aerea litoral brasileiro, praia, oceano turquesa. Marca Seazone: azul marinho #011337, coral #F1605D, branco. Design premium, limpo, moderno. Versao ${v}.`;
 
-      // --- PEÇA 1: ESTÁTICO (image-to-image com referência como template) ---
-      if (pn === 1 || pType.includes('estatico')) {
-        setGenProgress('Peça 1 — Estático: replicando template da referência...');
-        const scene = (piece.scenes || [])[0] || {};
-        const bgImage = scene.driveImageUrl || 'https://lh3.googleusercontent.com/d/13e96WR2Bs95nz8-7K288DFDxPdTcKRp0=s1920';
-        const refImage = 'https://lh3.googleusercontent.com/d/13G7xGya7gVAfP_EVTdOxQKoM5TvAU230=s1920';
-
-        // Montar prompt que descreve a referência + dados novos do briefing
-        const headline = scene.headline || piece.headline || '';
-        const subtitle = scene.subtitle || piece.subtitle || '';
-        const cta = scene.cta || piece.cta || 'Saiba mais';
-        const dataOverlay = scene.dataOverlay || piece.dataOverlay || '';
-
-        const staticPrompt = `Professional real estate marketing static ad, 9:16 vertical format, EXACT SAME LAYOUT as the reference image: dark blue badge at top with "Lançamento" label, main headline with financial data in center, dark blue data card with bullet points showing investment metrics, coral location pin badge, coral CTA button at bottom. Background: beautiful Brazilian coastal location photo. Clean premium Seazone brand style. Colors: navy #011337, coral #F1605D, white #FFFFFF. Text content to include: "${headline}". Data points: "${dataOverlay}". Location: "${subtitle}". CTA: "${cta}". Modern, clean, editorial real estate design. 8k quality.`;
-
-        if (!canCallAPI()) { setGeneratedImages([...allMedia]); continue; }
-        try {
-          const res = await fetch('/api/generate-image', {
+          const res = await fetch('/api/generate-static', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              prompt: staticPrompt,
-              engine: 'flux',
-              format: '9:16',
-              referenceImageUrl: refImage,
-              referenceStrength: 0.55,
-            }),
+            body: JSON.stringify({ prompt, referenceImageUrl: DRIVE.refEstatico }),
           });
           const result = await res.json();
           if (result.url) {
-            allMedia.push({
-              piece: pn, scene: 1,
-              engine: 'flux', type: 'image', url: result.url,
-              prompt: staticPrompt,
-              headline, subtitle, cta, dataOverlay,
-            });
+            vers.push({ url: result.url, type: 'image', engine: 'gpt5-image', version: v });
           } else {
-            console.error('Estático sem URL:', result);
-            setGenProgress(`Peça 1 — Erro: ${result.error || 'Sem URL no resultado'}`);
-            allMedia.push({ piece: pn, scene: 1, engine: 'flux', type: 'image', error: result.error || 'Sem URL' });
+            errs.push(`v${v}: ${result.error || 'Sem URL'}`);
           }
-        } catch (err) {
-          console.error('Estático erro:', err);
-          setGenProgress(`Peça 1 — Erro: ${err.message}`);
-          allMedia.push({ piece: pn, scene: 1, engine: 'flux', type: 'image', error: err.message });
-        }
-        setGeneratedImages([...allMedia]);
-        continue;
-      }
 
-      // --- PEÇA 2: NARRADO 15s (Kling + ElevenLabs) ---
-      if (pn === 2 || pType.includes('narrado')) {
-        // HARDCODED: 3 cenas com imagens do Drive — não depende do diretor criativo
-        const NARRADO_SCENES = [
-          {
-            name: 'Fachada',
-            imageUrl: 'https://lh3.googleusercontent.com/d/1gr6pI4ElrZK0gM4pJi-QgHqlVc91-0Nn=s1920',
-            prompt: 'Slow cinematic tilt up revealing modern residential building facade, golden hour warm sunlight, clean architectural lines, premium real estate, photorealistic',
-          },
-          {
-            name: 'Rooftop',
-            imageUrl: 'https://lh3.googleusercontent.com/d/1rkssZ7grxxozxe8xlKN0LVc0hw4p2vl5=s1920',
-            prompt: 'Gentle camera pan across luxury rooftop infinity pool, warm golden hour light reflecting on water, ocean view in background, premium resort atmosphere',
-          },
-          {
-            name: 'Localização',
-            imageUrl: 'https://lh3.googleusercontent.com/d/13e96WR2Bs95nz8-7K288DFDxPdTcKRp0=s1920',
-            prompt: 'Smooth aerial drone push forward over beautiful Brazilian coastal landscape, turquoise ocean, white sand beach, tropical vegetation, golden hour',
-          },
-        ];
+        } else if (pn === 2) {
+          // === NARRADO 15s (Kling + ElevenLabs + Creatomate) ===
+          const roteiro = roteiroTexts[2] || '';
+          const letteringMatches = roteiro.match(/Lettering:\s*(.+)/g) || [];
+          const letterings = letteringMatches.map(l => l.replace(/Lettering:\s*/, '').trim());
+          const narracaoMatches = roteiro.match(/Narra[cç][aã]o:\s*(.+)/g) || [];
+          const fullNarration = narracaoMatches.map(n => n.replace(/Narra[cç][aã]o:\s*/, '').trim()).join(' ') || 'Investimento inteligente no litoral de Florianopolis.';
 
-        // Se o diretor criativo mandou cenas com URLs, usar. Senão, usar hardcoded.
-        const dirScenes = (piece.scenes || []).filter(s => s.driveImageUrl && s.videoPrompt);
-        const scenesToUse = dirScenes.length >= 2 ? dirScenes.map((s, i) => ({
-          name: `Cena ${i + 1}`,
-          imageUrl: s.driveImageUrl,
-          prompt: s.videoPrompt,
-        })) : NARRADO_SCENES;
+          const CENAS = [
+            { name: 'Fachada', url: DRIVE.fachada, prompt: 'Slow cinematic tilt up modern building, golden hour, premium architecture' },
+            { name: 'Rooftop', url: DRIVE.rooftop, prompt: 'Gentle pan luxury rooftop pool, golden hour, ocean view, resort' },
+            { name: 'Localizacao', url: DRIVE.localizacao, prompt: 'Aerial push forward Brazilian coast, turquoise ocean, golden hour' },
+          ];
 
-        // Gerar vídeos animados das cenas
-        for (let i = 0; i < scenesToUse.length; i++) {
-          const scene = scenesToUse[i];
-          if (!canCallAPI()) break;
-          setGenProgress(`Peça 2 — Narrado: animando ${scene.name} (${i + 1}/${scenesToUse.length})...`);
+          // Gerar 3 clips via Kling
+          const clips = [];
+          for (let i = 0; i < CENAS.length; i++) {
+            setGenProgress(`Narrado v${v} — ${CENAS[i].name} (${i + 1}/3)...`);
+            try {
+              const res = await fetch('/api/generate-video', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ prompt: CENAS[i].prompt, engine: 'kling', imageUrl: CENAS[i].url, format: '9:16' }) });
+              const r = await res.json();
+              if (r.url) clips.push({ url: r.url, lettering: letterings[i] || '', duration: 5 });
+              else errs.push(`v${v} ${CENAS[i].name}: ${r.error || 'Sem URL'}`);
+            } catch (e) { errs.push(`v${v} ${CENAS[i].name}: ${e.message}`); }
+          }
+
+          // Narracao ElevenLabs
+          let audioUrl = null;
+          setGenProgress(`Narrado v${v} — narracao...`);
           try {
-            const res = await fetch('/api/generate-video', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                prompt: scene.prompt,
-                engine: 'kling',
-                imageUrl: scene.imageUrl,
-                format: '9:16',
-              }),
-            });
-            const result = await res.json();
-            if (result.url) {
-              allMedia.push({
-                piece: pn, scene: i + 1,
-                engine: 'kling', type: 'video', url: result.url, prompt: scene.prompt,
-              });
-            } else {
-              allMedia.push({ piece: pn, scene: i + 1, engine: 'kling', type: 'video', error: result.error || 'Sem URL' });
-            }
-          } catch (err) {
-            allMedia.push({ piece: pn, scene: i + 1, engine: 'kling', type: 'video', error: err.message });
-          }
-          setGeneratedImages([...allMedia]);
-        }
+            const res = await fetch('/api/generate-audio', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ text: fullNarration }) });
+            const r = await res.json();
+            if (r.audio) audioUrl = `data:audio/mp3;base64,${r.audio}`;
+          } catch (e) { errs.push(`v${v} audio: ${e.message}`); }
 
-        // Gerar narração (ElevenLabs) — pegar texto do roteiro
-        const dirNarration = (piece.scenes || []).map(s => s.narrationText || s.lettering || '').filter(Boolean).join(' ');
-        const narrationText = dirNarration || (roteiroTexts[2] || '').replace(/[━─═]/g, '').replace(/CENA \d+:|Visual:|Movimento:|Lettering:|Narração:|VÍDEO NARRADO.*/g, ' ').trim().substring(0, 500);
-        if (narrationText && canCallAPI()) {
-          setGenProgress('Peça 2 — Narrado: gerando narração (voz Monica)...');
+          // Montar via Creatomate
+          if (clips.length > 0) {
+            setGenProgress(`Narrado v${v} — montando video final...`);
+            try {
+              const res = await fetch('/api/compose-video', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ clips, audioUrl, duration: 15, type: 'narrado' }) });
+              const r = await res.json();
+              if (r.url) vers.push({ url: r.url, type: 'video', engine: 'creatomate', version: v });
+              else errs.push(`v${v} montagem: ${r.error || 'Sem URL'}`);
+            } catch (e) { errs.push(`v${v} montagem: ${e.message}`); }
+          }
+
+        } else if (pn === 3) {
+          // === APRESENTADORA 30s (Veo3 + Kling + ElevenLabs + Creatomate) ===
+          const roteiro = roteiroTexts[3] || '';
+          const falas = (roteiro.match(/Monica fala:\s*"([^"]+)"/g) || []).map(f => f.replace(/Monica fala:\s*"/, '').replace(/"$/, ''));
+          const letteringMatches = roteiro.match(/Lettering:\s*(.+)/g) || [];
+          const letterings = letteringMatches.map(l => l.replace(/Lettering:\s*/, '').trim());
+          const fullNarration = falas.join(' ') || 'Eu sou a Monica, socia fundadora da Seazone.';
+
+          // 5 cenas: Monica(6s) > Fachada(5s) > Monica(6s) > Rooftop(5s) > Localizacao(5s) > Monica CTA(3s)
+          const CENAS = [
+            { name: 'Monica 1', engine: 'veo3', url: DRIVE.monica, prompt: `Brazilian woman brown hair speaking to camera, confident, golden hour, Brazilian Portuguese: "${falas[0] || 'Oi, eu sou a Monica, socia fundadora da Seazone.'}"` },
+            { name: 'Fachada', engine: 'kling', url: DRIVE.fachada, prompt: 'Slow tilt up modern building, golden hour, premium' },
+            { name: 'Monica 2', engine: 'veo3', url: DRIVE.monica, prompt: `Brazilian woman speaking to camera, warm tone, Brazilian Portuguese: "${falas[1] || 'Esse empreendimento entrega resultados reais.'}"` },
+            { name: 'Rooftop', engine: 'kling', url: DRIVE.rooftop, prompt: 'Pan luxury rooftop pool, ocean view, golden hour' },
+            { name: 'Localizacao', engine: 'kling', url: DRIVE.localizacao, prompt: 'Aerial Brazilian coast, turquoise ocean, golden hour' },
+            { name: 'Monica CTA', engine: 'veo3', url: DRIVE.monica, prompt: `Brazilian woman speaking with enthusiasm, Brazilian Portuguese: "${falas[2] || falas[falas.length - 1] || 'Garanta sua unidade.'}"` },
+          ];
+
+          const clips = [];
+          for (let i = 0; i < CENAS.length; i++) {
+            setGenProgress(`Apresentadora v${v} — ${CENAS[i].name} (${i + 1}/6)...`);
+            try {
+              const body = { prompt: CENAS[i].prompt, engine: CENAS[i].engine, imageUrl: CENAS[i].url, format: '9:16' };
+              if (CENAS[i].engine === 'veo3') { body.duration = '5s'; body.generateAudio = false; }
+              const res = await fetch('/api/generate-video', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+              const r = await res.json();
+              if (r.url) clips.push({ url: r.url, lettering: letterings[i] || '', duration: 5 });
+              else errs.push(`v${v} ${CENAS[i].name}: ${r.error || 'Sem URL'}`);
+            } catch (e) { errs.push(`v${v} ${CENAS[i].name}: ${e.message}`); }
+          }
+
+          // Narracao ElevenLabs
+          let audioUrl = null;
+          setGenProgress(`Apresentadora v${v} — narracao...`);
           try {
-            const res = await fetch('/api/generate-audio', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ text: narrationText }),
-            });
-            const result = await res.json();
-            if (result.audio) {
-              allMedia.push({
-                piece: pn, scene: 0,
-                engine: 'elevenlabs', type: 'audio',
-                url: `data:audio/mp3;base64,${result.audio}`,
-                prompt: 'Narração voz Monica',
-              });
-              setGeneratedImages([...allMedia]);
-            }
-          } catch (err) {
-            allMedia.push({ piece: pn, scene: 0, engine: 'elevenlabs', type: 'audio', error: err.message });
+            const res = await fetch('/api/generate-audio', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ text: fullNarration }) });
+            const r = await res.json();
+            if (r.audio) audioUrl = `data:audio/mp3;base64,${r.audio}`;
+          } catch (e) { errs.push(`v${v} audio: ${e.message}`); }
+
+          // Montar via Creatomate
+          if (clips.length > 0) {
+            setGenProgress(`Apresentadora v${v} — montando video final...`);
+            try {
+              const res = await fetch('/api/compose-video', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ clips, audioUrl, duration: 30, type: 'apresentadora' }) });
+              const r = await res.json();
+              if (r.url) vers.push({ url: r.url, type: 'video', engine: 'creatomate', version: v });
+              else errs.push(`v${v} montagem: ${r.error || 'Sem URL'}`);
+            } catch (e) { errs.push(`v${v} montagem: ${e.message}`); }
           }
         }
-        continue;
-      }
-
-      // --- PEÇA 3: APRESENTADORA 30s (Veo 3 + Kling) ---
-      if (pn === 3 || pType.includes('apresentadora')) {
-        // HARDCODED: Monica (Veo 3) + cenas empreendimento (Kling)
-        const MONICA_PHOTO = 'https://lh3.googleusercontent.com/d/1fnk4XbJ3vtkrrM5f0RAbTMSTFdOatsC9=s1920';
-
-        // Extrair falas da Monica do roteiro
-        const roteiroText = roteiroTexts[3] || '';
-        const falas = roteiroText.match(/Monica fala:\s*"([^"]+)"/g) || [];
-        const falaTexts = falas.map(f => f.replace(/Monica fala:\s*"/, '').replace(/"$/, ''));
-        const monicaFala = falaTexts[0] || 'Oi, eu sou a Monica, sócia fundadora da Seazone. Esse empreendimento entrega resultados reais.';
-
-        const APRESENTADORA_SCENES = [
-          {
-            name: 'Monica falando',
-            engine: 'veo3',
-            imageUrl: MONICA_PHOTO,
-            prompt: `Medium shot of a Brazilian woman with brown hair speaking directly to camera, warm confident professional tone, modern clean background, golden hour side lighting, speaking in Brazilian Portuguese, she says: "${monicaFala}"`,
-            duration: '8s',
-            generateAudio: true,
-          },
-          {
-            name: 'Fachada animada',
-            engine: 'kling',
-            imageUrl: 'https://lh3.googleusercontent.com/d/1gr6pI4ElrZK0gM4pJi-QgHqlVc91-0Nn=s1920',
-            prompt: 'Slow cinematic tilt up of modern residential building, golden hour warm light, premium architecture, clean lines',
-          },
-          {
-            name: 'Rooftop animado',
-            engine: 'kling',
-            imageUrl: 'https://lh3.googleusercontent.com/d/1rkssZ7grxxozxe8xlKN0LVc0hw4p2vl5=s1920',
-            prompt: 'Gentle pan across luxury rooftop pool with ocean view, golden hour, warm light on water, premium resort feel',
-          },
-        ];
-
-        for (let i = 0; i < APRESENTADORA_SCENES.length; i++) {
-          if (!canCallAPI()) break;
-          const scene = APRESENTADORA_SCENES[i];
-          setGenProgress(`Peça 3 — Apresentadora: ${scene.name} (${i + 1}/${APRESENTADORA_SCENES.length})...`);
-          try {
-            const body = {
-              prompt: scene.prompt,
-              engine: scene.engine,
-              imageUrl: scene.imageUrl,
-              format: '9:16',
-            };
-            if (scene.engine === 'veo3') {
-              body.duration = scene.duration || '8s';
-              body.generateAudio = scene.generateAudio ?? true;
-            }
-            const res = await fetch('/api/generate-video', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify(body),
-            });
-            const result = await res.json();
-            if (result.url) {
-              allMedia.push({
-                piece: pn, scene: i + 1,
-                engine: scene.engine, type: 'video', url: result.url, prompt: scene.prompt,
-              });
-            } else {
-              allMedia.push({ piece: pn, scene: i + 1, engine: scene.engine, type: 'video', error: result.error || 'Sem URL' });
-            }
-          } catch (err) {
-            allMedia.push({ piece: pn, scene: i + 1, engine: scene.engine, type: 'video', error: err.message });
-          }
-          setGeneratedImages([...allMedia]);
-        }
-        continue;
-      }
+      } catch (err) { errs.push(`v${v}: ${err.message}`); }
     }
-
-    setGenProgress(`✅ Concluído — ${apiCallCount} chamadas de API usadas (limite: ${MAX_API_CALLS})`);
-    setGenStatus('success');
-    setPhase('validation');
-    runValidation(allMedia, dir);
+    setResults(prev => ({ ...prev, [pn]: vers }));
+    setPieceErrors(prev => ({ ...prev, [pn]: errs }));
   };
 
-  // --- Agent 06: Validate ---
-  const runValidation = async (images, dir) => {
-    setValStatus('running');
-    try {
-      const creatives = {
-        direction: dir,
-        images: images.filter(i => i.url).map(i => ({
-          piece: i.piece, scene: i.scene, engine: i.engine, prompt: i.prompt,
-        })),
-        totalImages: images.filter(i => i.url).length,
-        totalErrors: images.filter(i => i.error).length,
-      };
-      const res = await fetch('/api/validate-creative', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ briefing: data, creatives }),
-      });
-      const result = await res.json();
-      setFinalValidation(result);
-      setValStatus('success');
-      setPhase('done');
-    } catch (err) {
-      setValStatus('error');
-    }
-  };
-
+  // ===================
+  // RENDER
+  // ===================
   return (
     <div className="fade-in">
       <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-4 mb-6 flex items-center justify-between">
-        <p className="text-sm text-emerald-700">✅ Briefing <strong>{projectName}</strong> validado.</p>
+        <p className="text-sm text-emerald-700">Briefing <strong>{projectName}</strong> validado.</p>
         <span className="text-xs font-mono px-2 py-1 rounded-full bg-yellow-100 text-yellow-800">
-          {phase === 'done' ? 'Pipeline completo!' : `Fase: ${phase}`}
+          {phase === 'done' ? 'Completo' : phase === 'approval' ? 'Aprovacao' : phase === 'generating' ? 'Gerando...' : 'Roteiros'}
         </span>
       </div>
 
-      {/* Agent 02+03: Roteiros */}
+      {/* Roteiros (Agents 02+03) */}
       <h3 className="font-display font-bold text-sm text-gray-500 mb-3 uppercase tracking-wider">Agentes 02+03 — Roteiros</h3>
       <div className="space-y-4 mb-6">
         {[1, 2, 3].map(n => (
@@ -1032,248 +864,98 @@ function Step3_Pipeline({ data, onReset }) {
         ))}
       </div>
 
-      {/* Agent 04: Direction */}
-      {allRoteiros && (
-        <div className="mb-6 fade-in">
-          <h3 className="font-display font-bold text-sm text-gray-500 mb-3 uppercase tracking-wider">Agente 04 — Diretor Criativo</h3>
-          <AgentCard number="04" name="Diretor Criativo" icon="🎨" status={dirStatus}
-            description="Gerando prompts de IA para cada cena..." timer={dirTimer}>
-            {direction && (
-              <div className="px-5 py-3 bg-emerald-50 text-sm text-emerald-700">
-                ✅ {(direction.pieces || []).length} peças com prompts gerados
-              </div>
-            )}
-          </AgentCard>
-        </div>
-      )}
-
-      {/* Agent 05: Creatives */}
-      {phase === 'creatives' || phase === 'validation' || phase === 'done' ? (
+      {/* Generation progress */}
+      {(phase === 'generating' || phase === 'approval' || phase === 'done') && (
         <div className="mb-6 fade-in">
           <h3 className="font-display font-bold text-sm text-gray-500 mb-3 uppercase tracking-wider">Agente 05 — Executor Criativo</h3>
           <AgentCard number="05" name="Executor Criativo" icon="⚡" status={genStatus}
-            description={genProgress || 'Gerando imagens...'} timer={genTimer}>
-            {generatedImages.length > 0 && (
-              <div className="px-5 py-3">
-                {/* Images */}
-                <p className="text-xs font-bold text-gray-500 mb-2 uppercase">Imagens</p>
-                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3 mb-4">
-                  {generatedImages.filter(i => i.url && i.type === 'image').map((img, idx) => (
-                    <a key={idx} href={img.url} target="_blank" rel="noopener" className="relative group">
-                      <img src={img.url} alt={`P${img.piece} C${img.scene}`}
-                        className="w-full aspect-[9/16] object-cover rounded-lg border border-gray-200 hover:border-sea-coral transition-colors" />
-                      <div className="absolute bottom-0 left-0 right-0 bg-black/60 text-white text-[10px] px-2 py-1 rounded-b-lg">
-                        P{img.piece} C{img.scene} — {img.engine === 'drive' ? 'Drive' : img.engine}
-                      </div>
-                    </a>
-                  ))}
-                </div>
-                {/* Videos */}
-                {generatedImages.some(i => i.url && i.type === 'video') && (
-                  <>
-                    <p className="text-xs font-bold text-gray-500 mb-2 uppercase">Vídeos</p>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                      {generatedImages.filter(i => i.url && i.type === 'video').map((vid, idx) => (
-                        <div key={idx} className="relative">
-                          <video src={vid.url} controls className="w-full rounded-lg border border-gray-200" />
-                          <div className="mt-1 text-[10px] text-gray-500">
-                            P{vid.piece} C{vid.scene} — {vid.engine === 'kling' ? 'Kling' : vid.engine === 'veo3' ? 'Veo 3 (Monica)' : vid.engine}
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </>
-                )}
-                <p className="text-xs text-gray-500 mt-2">
-                  {generatedImages.filter(i => i.url && i.type === 'image').length} imagens +
-                  {' '}{generatedImages.filter(i => i.url && i.type === 'video').length} vídeos gerados
-                </p>
-              </div>
-            )}
-          </AgentCard>
+            description={genProgress || 'Gerando criativos...'} timer={genTimer} />
         </div>
-      ) : null}
+      )}
 
-      {/* Agent 06: Validation */}
-      {phase === 'validation' || phase === 'done' ? (
-        <div className="mb-6 fade-in">
-          <h3 className="font-display font-bold text-sm text-gray-500 mb-3 uppercase tracking-wider">Agente 06 — Validador Final</h3>
-          <AgentCard number="06" name="Validador do Criativo" icon="🏆" status={valStatus}
-            description="Validando criativos gerados..." timer={valTimer}>
-            {finalValidation && (
-              <div className={`px-5 py-3 text-sm ${finalValidation.approved ? 'bg-emerald-50 text-emerald-700' : 'bg-red-50 text-red-700'}`}>
-                <strong>{finalValidation.approved ? '✅' : '❌'}</strong> {finalValidation.summary}
-                {finalValidation.recommendation && (
-                  <p className="mt-1 text-xs opacity-80">{finalValidation.recommendation}</p>
-                )}
-              </div>
-            )}
-          </AgentCard>
-        </div>
-      ) : null}
-
-      {/* Approval per piece */}
-      {phase === 'done' && (
+      {/* Approval section */}
+      {(phase === 'approval' || phase === 'done') && (
         <div className="mt-6 fade-in space-y-4">
-          <h3 className="font-display font-bold text-sm text-gray-500 mb-3 uppercase tracking-wider">Aprovação dos Entregáveis</h3>
+          <h3 className="font-display font-bold text-sm text-gray-500 mb-3 uppercase tracking-wider">Aprovacao dos Entregaveis</h3>
 
           {[1, 2, 3].map(pn => {
-            const pieceNames = { 1: 'Peça Estática', 2: 'Vídeo Narrado 15s', 3: 'Vídeo Apresentadora 30s' };
-            const pieceIcons = { 1: '🖼️', 2: '🎥', 3: '🎬' };
-            const items = generatedImages.filter(i => i.url && i.piece === pn);
-            const errors = generatedImages.filter(i => i.error && i.piece === pn);
-            const saved = approvedPieces[pn] || [];
-            const isSaving = savingPiece === pn;
-            const isApproved = saved.length > 0;
+            const pNames = { 1: 'Peca Estatica', 2: 'Video Narrado 15s', 3: 'Video Apresentadora 30s' };
+            const icons = { 1: '🖼️', 2: '🎥', 3: '🎬' };
+            const items = results[pn] || [];
+            const errs = pieceErrors[pn] || [];
+            const approved = approvedPieces[pn];
+            const saving = savingPiece === pn;
+            const regen = regeneratingPiece === pn;
 
             return (
-              <div key={pn} className={`rounded-xl border ${isApproved ? 'border-emerald-300 bg-emerald-50' : 'border-gray-200 bg-white'} p-4`}>
+              <div key={pn} className={`rounded-xl border ${approved ? 'border-emerald-300 bg-emerald-50' : 'border-gray-200 bg-white'} p-4`}>
                 <div className="flex items-center justify-between mb-3">
                   <div className="flex items-center gap-2">
-                    <span className="text-xl">{pieceIcons[pn]}</span>
-                    <span className="font-bold text-sm">{pieceNames[pn]}</span>
-                    {isApproved && <span className="text-xs bg-emerald-200 text-emerald-800 px-2 py-0.5 rounded-full">Aprovado</span>}
+                    <span className="text-xl">{icons[pn]}</span>
+                    <span className="font-bold text-sm">{pNames[pn]}</span>
+                    {approved && <span className="text-xs bg-emerald-200 text-emerald-800 px-2 py-0.5 rounded-full">Aprovado</span>}
+                    {regen && <span className="text-xs bg-yellow-200 text-yellow-800 px-2 py-0.5 rounded-full pulse">Refazendo...</span>}
                   </div>
-                  {!isApproved && items.length > 0 && (
-                    <div className="flex gap-2">
-                      <button
-                        onClick={() => handleReject(pn)}
-                        disabled={regeneratingPiece === pn || isSaving}
-                        className="border border-red-300 text-red-600 hover:bg-red-50 disabled:opacity-50 font-bold px-4 py-2 rounded-lg text-xs"
-                      >
-                        {regeneratingPiece === pn ? 'Refazendo...' : 'Reprovar e Refazer'}
-                      </button>
-                      <button
-                        onClick={() => handleApproveAll(pn)}
-                        disabled={isSaving || regeneratingPiece === pn}
-                        className="bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white font-bold px-4 py-2 rounded-lg text-xs"
-                      >
-                        {isSaving ? 'Salvando...' : 'Aprovar e Salvar'}
-                      </button>
-                    </div>
+                  {!approved && items.length > 0 && !regen && (
+                    <button onClick={() => handleReject(pn)}
+                      className="border border-red-300 text-red-600 hover:bg-red-50 font-bold px-3 py-1.5 rounded-lg text-xs">
+                      Reprovar e Refazer
+                    </button>
                   )}
                 </div>
 
-                {/* Show items */}
-                {pn === 1 ? (
-                  /* ESTÁTICO: imagem com overlay estilo Seazone + referência lado a lado */
-                  <div>
-                    <div className="grid grid-cols-2 gap-4">
-                      {/* Gerado — imagem do Drive com template Seazone */}
-                      <div>
-                        <p className="text-[10px] font-bold text-gray-500 mb-1 uppercase">Gerado</p>
-                        {items.map((item, idx) => (
-                          <div key={idx} className="relative rounded-lg overflow-hidden border border-gray-200" style={{aspectRatio: '9/16'}}>
-                            <img src={item.url} alt="" className="w-full h-full object-cover" />
-                            {/* Overlay Seazone — copiando hierarquia da referência */}
-                            <div className="absolute inset-0 flex flex-col justify-between p-3" style={{background: 'linear-gradient(180deg, rgba(1,19,55,0.75) 0%, rgba(1,19,55,0.15) 35%, rgba(1,19,55,0.1) 55%, rgba(1,19,55,0.8) 100%)'}}>
-
-                              {/* TOPO — Badge lançamento + Logo */}
-                              <div className="space-y-2">
-                                <div className="flex items-center justify-between">
-                                  <span className="text-white/90 text-[7px] font-bold uppercase tracking-widest">Seazone</span>
-                                  <span className="text-[7px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider" style={{backgroundColor: '#F1605D', color: 'white'}}>
-                                    Lançamento
-                                  </span>
-                                </div>
-                                {item.headline && (
-                                  <p className="font-display font-bold text-white text-base leading-snug drop-shadow-lg">
-                                    {item.headline}
-                                  </p>
-                                )}
-                              </div>
-
-                              {/* CENTRO — Caixa de dados (estilo referência) */}
-                              <div className="space-y-2">
-                                {/* Caixa azul ROI */}
-                                {item.dataOverlay && (
-                                  <div className="rounded-lg p-2.5 space-y-1.5" style={{backgroundColor: 'rgba(1,19,55,0.85)', backdropFilter: 'blur(8px)'}}>
-                                    {item.dataOverlay.split(',').map((dado, i) => (
-                                      <div key={i} className="flex items-center gap-2">
-                                        <span className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{backgroundColor: '#F1605D'}}></span>
-                                        <span className="text-white text-[9px] font-medium">{dado.trim()}</span>
-                                      </div>
-                                    ))}
-                                  </div>
-                                )}
-                                {/* Pin de localização */}
-                                {item.subtitle && (
-                                  <div className="flex items-center gap-1.5 bg-white/15 backdrop-blur-sm rounded-full px-2.5 py-1 w-fit">
-                                    <svg width="10" height="10" viewBox="0 0 24 24" fill="#F1605D"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5a2.5 2.5 0 010-5 2.5 2.5 0 010 5z"/></svg>
-                                    <span className="text-white text-[8px] font-medium">{item.subtitle}</span>
-                                  </div>
-                                )}
-                              </div>
-
-                              {/* BASE — CTA */}
-                              <div className="text-center">
-                                {item.cta ? (
-                                  <span className="inline-block text-white font-bold text-[9px] px-5 py-1.5 rounded-full shadow-lg" style={{backgroundColor: '#F1605D'}}>
-                                    {item.cta}
-                                  </span>
-                                ) : (
-                                  <span className="inline-block text-white font-bold text-[9px] px-5 py-1.5 rounded-full shadow-lg" style={{backgroundColor: '#F1605D'}}>
-                                    Saiba mais
-                                  </span>
-                                )}
-                              </div>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                      {/* Referência — Estático.png do Drive */}
-                      <div>
-                        <p className="text-[10px] font-bold text-gray-500 mb-1 uppercase">Referência (copiar hierarquia)</p>
-                        <div className="rounded-lg overflow-hidden border-2 border-dashed border-orange-300">
-                          <img
-                            src="https://lh3.googleusercontent.com/d/13G7xGya7gVAfP_EVTdOxQKoM5TvAU230=s1920"
-                            alt="Referência estático"
-                            className="w-full h-auto"
-                          />
-                        </div>
-                        <p className="text-[10px] text-orange-600 mt-1">Copiar: layout, posição dos elementos, caixas, ícones, hierarquia de texto</p>
-                      </div>
-                    </div>
-                  </div>
-                ) : (
-                  /* VÍDEOS e ÁUDIO: exibição normal */
-                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                {/* 2 versions side by side */}
+                {items.length > 0 && !approved && (
+                  <div className="grid grid-cols-2 gap-3">
                     {items.map((item, idx) => (
-                      <div key={idx} className="relative">
+                      <div key={idx} className="relative rounded-lg overflow-hidden border border-gray-200">
                         {item.type === 'video' ? (
-                          <video src={item.url} controls className="w-full rounded-lg border border-gray-200" />
-                        ) : item.type === 'audio' ? (
-                          <audio src={item.url} controls className="w-full" />
+                          <video src={item.url} controls className="w-full" />
                         ) : (
-                          <img src={item.url} alt="" className="w-full aspect-[9/16] object-cover rounded-lg border border-gray-200" />
+                          <img src={item.url} alt="" className="w-full" />
                         )}
-                        <div className="mt-1 text-[10px] text-gray-500">
-                          C{item.scene} — {item.engine}
+                        <div className="p-2 flex items-center justify-between bg-gray-50">
+                          <span className="text-[10px] text-gray-500">Versao {item.version} — {item.engine}</span>
+                          <button onClick={() => handleApprove(pn, item)} disabled={saving}
+                            className="bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white font-bold px-3 py-1 rounded text-[10px]">
+                            {saving ? '...' : 'Aprovar'}
+                          </button>
                         </div>
                       </div>
                     ))}
                   </div>
                 )}
 
-                {/* Show errors */}
-                {errors.length > 0 && (
-                  <div className="mt-2 space-y-1">
-                    {errors.map((e, idx) => (
-                      <p key={idx} className="text-xs text-red-600 bg-red-50 px-2 py-1 rounded">
-                        Erro cena {e.scene}: {e.error}
-                      </p>
-                    ))}
+                {/* Reference for static */}
+                {pn === 1 && items.length > 0 && !approved && (
+                  <div className="mt-3">
+                    <p className="text-[10px] font-bold text-gray-500 mb-1 uppercase">Referencia</p>
+                    <img src={DRIVE.refEstatico} alt="Ref" className="w-1/2 rounded-lg border-2 border-dashed border-orange-300" />
                   </div>
                 )}
 
-                {/* Show saved URLs */}
-                {saved.length > 0 && (
-                  <div className="mt-2 space-y-1">
-                    {saved.map((s, idx) => (
-                      <a key={idx} href={s.savedUrl} target="_blank" rel="noopener"
-                        className="block text-xs text-emerald-700 hover:underline truncate">
-                        Salvo: {s.savedUrl}
+                {/* Approved item */}
+                {approved && (
+                  <div className="mt-2">
+                    {approved.type === 'video' ? (
+                      <video src={approved.url} controls className="w-full rounded-lg" />
+                    ) : (
+                      <img src={approved.url} alt="" className="w-full rounded-lg" />
+                    )}
+                    {approved.savedUrl && (
+                      <a href={approved.savedUrl} target="_blank" rel="noopener"
+                        className="block text-xs text-emerald-700 hover:underline mt-1 truncate">
+                        Salvo: {approved.savedUrl}
                       </a>
+                    )}
+                  </div>
+                )}
+
+                {/* Errors */}
+                {errs.length > 0 && (
+                  <div className="mt-2 space-y-1">
+                    {errs.map((e, i) => (
+                      <p key={i} className="text-xs text-red-600 bg-red-50 px-2 py-1 rounded">{e}</p>
                     ))}
                   </div>
                 )}
@@ -1281,12 +963,25 @@ function Step3_Pipeline({ data, onReset }) {
             );
           })}
 
-          {/* All approved */}
+          {/* All 3 approved — final page */}
           {Object.keys(approvedPieces).length === 3 && (
-            <div className="bg-sea-dark rounded-xl p-6 text-white text-center">
+            <div className="bg-sea-dark rounded-xl p-6 text-white text-center fade-in">
               <div className="text-4xl mb-3">🎉</div>
               <h3 className="font-display font-bold text-xl mb-2">Pacote completo e salvo!</h3>
-              <p className="text-white/60 text-sm mb-4">{projectName} — 3/3 peças aprovadas</p>
+              <p className="text-white/60 text-sm mb-4">{projectName} — 3/3 pecas aprovadas</p>
+
+              <div className="bg-white/10 rounded-lg p-4 mb-4 text-left max-w-md mx-auto">
+                <p className="text-xs font-bold text-white/80 mb-2 uppercase">IAs utilizadas no resultado final:</p>
+                <div className="space-y-1 text-sm text-white/70">
+                  <p>🖼️ <strong>GPT-5 Image</strong> — peca estatica</p>
+                  <p>🎬 <strong>Kling</strong> — animacao de cenas (fachada, rooftop, localizacao)</p>
+                  <p>👩 <strong>Veo 3</strong> — video da Monica apresentadora</p>
+                  <p>🎙️ <strong>ElevenLabs</strong> — voz clonada da Monica</p>
+                  <p>🎞️ <strong>Creatomate</strong> — montagem final dos videos</p>
+                  <p>🧠 <strong>Claude Sonnet</strong> — roteiros e validacao</p>
+                </div>
+              </div>
+
               <button onClick={onReset} className="bg-sea-coral hover:bg-sea-coral/90 text-white font-bold px-6 py-2.5 rounded-lg text-sm">
                 Novo Briefing
               </button>
