@@ -160,7 +160,7 @@ São ~2.3 palavras/segundo × 30 segundos = 69 palavras limite absoluto.
 Conte as palavras de TODAS as falas antes de entregar. Se passar de 70, CORTE.
 
 # ESTRUTURA FIXA — 5 CENAS (2 Monica + 3 Empreendimento)
-São EXATAMENTE 5 cenas. 2 da Monica (geradas via Veo3) intercaladas com 3 do
+São EXATAMENTE 5 cenas. 2 da Monica (geradas via Kling 3.0 Pro) intercaladas com 3 do
 empreendimento (animadas via Kling). Isso economiza custo de IA.
 
 Formato EXATO:

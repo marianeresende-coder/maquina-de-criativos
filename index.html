@@ -889,9 +889,9 @@ ABSOLUTE RULES:
           }
 
         } else if (pn === 3) {
-          // === APRESENTADORA 30s (Veo3 + Kling + ElevenLabs + Creatomate) ===
+          // === APRESENTADORA 30s (Kling 3.0 Pro + Kling v2.1 + ElevenLabs + Creatomate) ===
           // 5 cenas: Monica intro(8s) → Fachada(5s) → Rooftop(5s) → Localização(5s) → Monica CTA(7s)
-          // Apenas 2 chamadas Veo3 (em vez de 3) = economia de ~$3 por geração
+          // 2 Kling 3.0 Pro (Monica) + 3 Kling v2.1 (cenas) = ~$2.24 total
           const roteiro = roteiroTexts[3] || '';
           const falas = (roteiro.match(/Monica fala:\s*"([^"]+)"/g) || []).map(f => f.replace(/Monica fala:\s*"/, '').replace(/"$/, ''));
           const letteringMatches = roteiro.match(/Lettering:\s*(.+)/g) || [];
