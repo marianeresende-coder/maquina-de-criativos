@@ -625,9 +625,11 @@ function Step3_Pipeline({ data, onReset }) {
   const [valStatus, setValStatus] = useState('idle');
   const valTimer = useTimer(valStatus === 'running');
 
-  // --- Approval & Save ---
+  // --- Approval, Reject & Save ---
   const [approvedPieces, setApprovedPieces] = useState({});
   const [savingPiece, setSavingPiece] = useState(null);
+  const [rejectingPiece, setRejectingPiece] = useState(null);
+  const [regeneratingPiece, setRegeneratingPiece] = useState(null);
 
   const handleApprove = async (pieceNum, mediaItem) => {
     const pieceTypes = { 1: 'estatico', 2: 'narrado', 3: 'apresentadora' };
@@ -662,6 +664,26 @@ function Step3_Pipeline({ data, onReset }) {
     for (const item of items) {
       await handleApprove(pieceNum, item);
     }
+  };
+
+  const handleReject = async (pieceNum) => {
+    setRegeneratingPiece(pieceNum);
+    // Remove os itens antigos desta peça
+    setGeneratedImages(prev => prev.filter(i => i.piece !== pieceNum));
+
+    // Buscar a direção da peça novamente e re-executar
+    const pieceDir = (direction?.pieces || []).find(p =>
+      p.pieceNumber === pieceNum || (pieceNum === 1 && (p.type || '').includes('estatico')) ||
+      (pieceNum === 2 && (p.type || '').includes('narrado')) ||
+      (pieceNum === 3 && (p.type || '').includes('apresentadora'))
+    );
+
+    if (pieceDir) {
+      // Re-executar só essa peça
+      const tempDir = { pieces: [pieceDir] };
+      await runCreatives(tempDir);
+    }
+    setRegeneratingPiece(null);
   };
 
   // Collect roteiro texts from PieceCardWrappers
@@ -731,23 +753,44 @@ function Step3_Pipeline({ data, onReset }) {
       const pn = piece.pieceNumber;
       const pType = piece.type || '';
 
-      // --- PEÇA 1: ESTÁTICO (0 chamadas de IA) ---
+      // --- PEÇA 1: ESTÁTICO (image-to-image com referência como template) ---
       if (pn === 1 || pType.includes('estatico')) {
-        setGenProgress('Peça 1 — Estático: montando com imagem do Drive...');
+        setGenProgress('Peça 1 — Estático: replicando template da referência...');
         const scene = (piece.scenes || [])[0] || {};
-        if (scene.driveImageUrl) {
-          allMedia.push({
-            piece: pn, scene: 1,
-            engine: 'drive', type: 'static',
-            url: scene.driveImageUrl,
-            prompt: 'Imagem real do Drive (localização)',
-            lettering: scene.lettering || '',
-            letteringPosition: scene.letteringPosition || 'center',
-            headline: scene.headline || piece.headline || '',
-            subtitle: scene.subtitle || piece.subtitle || '',
-            cta: scene.cta || piece.cta || '',
-            dataOverlay: scene.dataOverlay || piece.dataOverlay || '',
+        const bgImage = scene.driveImageUrl || 'https://lh3.googleusercontent.com/d/13e96WR2Bs95nz8-7K288DFDxPdTcKRp0=s1920';
+        const refImage = 'https://lh3.googleusercontent.com/d/13G7xGya7gVAfP_EVTdOxQKoM5TvAU230=s1920';
+
+        // Montar prompt que descreve a referência + dados novos do briefing
+        const headline = scene.headline || piece.headline || '';
+        const subtitle = scene.subtitle || piece.subtitle || '';
+        const cta = scene.cta || piece.cta || 'Saiba mais';
+        const dataOverlay = scene.dataOverlay || piece.dataOverlay || '';
+
+        const staticPrompt = `Professional real estate marketing static ad, 9:16 vertical format, EXACT SAME LAYOUT as the reference image: dark blue badge at top with "Lançamento" label, main headline with financial data in center, dark blue data card with bullet points showing investment metrics, coral location pin badge, coral CTA button at bottom. Background: beautiful Brazilian coastal location photo. Clean premium Seazone brand style. Colors: navy #011337, coral #F1605D, white #FFFFFF. Text content to include: "${headline}". Data points: "${dataOverlay}". Location: "${subtitle}". CTA: "${cta}". Modern, clean, editorial real estate design. 8k quality.`;
+
+        try {
+          const res = await fetch('/api/generate-image', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              prompt: staticPrompt,
+              engine: 'flux',
+              format: '9:16',
+              referenceImageUrl: refImage,
+              referenceStrength: 0.55,
+            }),
           });
+          const result = await res.json();
+          if (result.url) {
+            allMedia.push({
+              piece: pn, scene: 1,
+              engine: 'flux', type: 'image', url: result.url,
+              prompt: staticPrompt,
+              headline, subtitle, cta, dataOverlay,
+            });
+          }
+        } catch (err) {
+          allMedia.push({ piece: pn, scene: 1, engine: 'flux', type: 'image', error: err.message });
         }
         setGeneratedImages([...allMedia]);
         continue;
@@ -1043,13 +1086,22 @@ function Step3_Pipeline({ data, onReset }) {
                     {isApproved && <span className="text-xs bg-emerald-200 text-emerald-800 px-2 py-0.5 rounded-full">Aprovado</span>}
                   </div>
                   {!isApproved && items.length > 0 && (
-                    <button
-                      onClick={() => handleApproveAll(pn)}
-                      disabled={isSaving}
-                      className="bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white font-bold px-4 py-2 rounded-lg text-xs"
-                    >
-                      {isSaving ? 'Salvando...' : 'Aprovar e Salvar'}
-                    </button>
+                    <div className="flex gap-2">
+                      <button
+                        onClick={() => handleReject(pn)}
+                        disabled={regeneratingPiece === pn || isSaving}
+                        className="border border-red-300 text-red-600 hover:bg-red-50 disabled:opacity-50 font-bold px-4 py-2 rounded-lg text-xs"
+                      >
+                        {regeneratingPiece === pn ? 'Refazendo...' : 'Reprovar e Refazer'}
+                      </button>
+                      <button
+                        onClick={() => handleApproveAll(pn)}
+                        disabled={isSaving || regeneratingPiece === pn}
+                        className="bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white font-bold px-4 py-2 rounded-lg text-xs"
+                      >
+                        {isSaving ? 'Salvando...' : 'Aprovar e Salvar'}
+                      </button>
+                    </div>
                   )}
                 </div>
 
