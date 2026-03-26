@@ -121,7 +121,12 @@ ETAPA 3: VÍDEO APRESENTADORA
 
 ```
 1. Receber prompt do Agente 04 para a apresentadora
-2. Gerar vídeo da Monica via Veo 3 (1-2 chamadas):
+2. REGRAS OBRIGATÓRIAS DO VÍDEO:
+   - IDIOMA: PORTUGUÊS DO BRASIL. NUNCA INGLÊS.
+   - USAR A FOTO DA MONICA como referência visual (pasta de referências do Drive)
+   - USAR A VOZ DA MONICA clonada via ElevenLabs para narração
+   - A fala DEVE ser em português brasileiro
+3. Gerar vídeo da Monica via Veo 3 (1-2 chamadas):
    POST api/generate-video.js
    {
      "engine": "veo3",
@@ -129,11 +134,11 @@ ETAPA 3: VÍDEO APRESENTADORA
        with brown hair, wearing a light beige blazer over white top,
        speaking directly to camera with warm confident professional tone,
        modern clean background, golden hour lighting,
-       she says in Brazilian Portuguese: '[FALA DO ROTEIRO]'",
+       speaking in Brazilian Portuguese, she says: '[FALA DO ROTEIRO EM PORTUGUÊS]'",
      "duration": "8s",
      "generateAudio": true
    }
-3. Apresentar ao usuário: vídeo da Monica
+4. Apresentar ao usuário: vídeo da Monica
 ```
 
 **Chamadas de API: 1-2 (Veo 3)**

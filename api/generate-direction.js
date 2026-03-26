@@ -34,16 +34,27 @@ Você recebe 1 roteiro validado por vez e gera o prompt de execução para o Age
 ## Peça 1 (Estático):
 - Escolher 1 imagem de Localização da lista acima
 - NÃO chamar nenhuma API de imagem
-- Gerar instruções de lettering (dados do briefing, posição, cores)
+- OBRIGATÓRIO incluir no JSON: headline, subtitle, cta, dataOverlay
 - Seguir hierarquia de mensagens da referência Estático.png
+- Referência: https://lh3.googleusercontent.com/d/13G7xGya7gVAfP_EVTdOxQKoM5TvAU230=s1920
+- Copiar a estrutura de posicionamento: badge topo, headline centro, dados centro, CTA base
 
 ## Peça 2 (Narrado 15s):
 - Para cada cena: escolher 1 imagem do Drive + gerar prompt de animação Kling
 - Gerar texto da narração para ElevenLabs
 - Formato 9:16
 
+## Peça 2 (Narrado 15s):
+- IDIOMA: Português do Brasil. NUNCA inglês.
+- Narração: usar voz clonada da Monica via ElevenLabs (automático)
+- Texto da narração DEVE ser em português do Brasil
+
 ## Peça 3 (Apresentadora 30s):
 - Para cenas da Monica: gerar prompt Veo 3 (text-to-video com áudio)
+- IDIOMA: TUDO em Português do Brasil. NUNCA inglês.
+- No prompt do Veo 3, SEMPRE incluir: "speaking in Brazilian Portuguese"
+- Descrição visual da Monica: usar a imagem de referência do Drive
+  URL da foto da Monica: pasta de referência 15EKv4-VAy6CSfyA8vpKuvu_TUwq27ex4
 - Para cenas do empreendimento: escolher imagem do Drive + prompt Kling
 - Formato 9:16
 
@@ -63,7 +74,11 @@ Você recebe 1 roteiro validado por vez e gera o prompt de execução para o Age
       "generateAudio": true/false,
       "narrationText": "texto da narração (ou null)",
       "lettering": "texto na tela",
-      "letteringPosition": "top|center|bottom"
+      "letteringPosition": "top|center|bottom",
+      "headline": "headline principal com dado financeiro (só estático)",
+      "subtitle": "subtexto de suporte (só estático)",
+      "cta": "chamada para ação (só estático)",
+      "dataOverlay": "dados extras do briefing para overlay (só estático)"
     }
   ]
 }

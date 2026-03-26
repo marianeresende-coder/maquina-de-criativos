@@ -30,7 +30,13 @@ Roteiro aprovado → Estático (aprovar) → Narrado (aprovar) → Apresentadora
 - Apresentadora: **~2 chamadas** (Veo 3)
 - **TOTAL MÁXIMO: ~7 chamadas. Se passar de 12, PARE.**
 
-### REGRA 5: PEÇA ESTÁTICA = REFERÊNCIA
+### REGRA 5: IDIOMA = PORTUGUÊS DO BRASIL. SEMPRE.
+- Narração, falas da Monica, textos: TUDO em português brasileiro
+- Prompts de vídeo Veo 3 DEVEM incluir "speaking in Brazilian Portuguese"
+- NUNCA gerar conteúdo em inglês para o usuário final
+- Usar a voz clonada da Monica (ElevenLabs) para toda narração
+
+### REGRA 6: PEÇA ESTÁTICA = REFERÊNCIA
 - A peça estática de referência está em `15EKv4-VAy6CSfyA8vpKuvu_TUwq27ex4` (Estático.png)
 - SEGUIR EXATAMENTE a hierarquia de mensagens dessa referência
 - 1 imagem de fundo (localização do Drive) + dados do briefing como overlay
