@@ -16,7 +16,13 @@
     "api/compose-video.js": {
       "maxDuration": 300
     },
+    "api/generate-roteiro.js": {
+      "maxDuration": 120
+    },
     "api/fix-roteiro.js": {
+      "maxDuration": 120
+    },
+    "api/validate-roteiro.js": {
       "maxDuration": 120
     },
     "api/*.js": {

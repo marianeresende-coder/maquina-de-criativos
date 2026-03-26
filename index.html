@@ -79,45 +79,67 @@ const PIECE_ICONS = ['🖼️', '🎥', '🎬'];
 // ============================================================
 
 async function generatePiece(briefing, pieceNumber, onChunk, onDone, onError) {
-  try {
-    const res = await fetch('/api/generate-roteiro', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ briefing, pieceNumber }),
-    });
+  const MAX_RETRIES = 2;
+  for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
+    try {
+      const res = await fetch('/api/generate-roteiro', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ briefing, pieceNumber }),
+      });
 
-    if (!res.ok) {
-      const err = await res.json().catch(() => ({ error: 'Erro desconhecido' }));
-      onError(err.error || `HTTP ${res.status}`);
-      return;
-    }
+      if (!res.ok) {
+        if (res.status >= 500 && attempt < MAX_RETRIES - 1) {
+          await new Promise(r => setTimeout(r, 3000));
+          continue;
+        }
+        const err = await res.json().catch(() => ({ error: `HTTP ${res.status}` }));
+        onError(err.error || `HTTP ${res.status}`);
+        return;
+      }
 
-    const reader = res.body.getReader();
-    const decoder = new TextDecoder();
-    let buffer = '';
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = '';
+      let receivedData = false;
 
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) break;
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
 
-      buffer += decoder.decode(value, { stream: true });
-      const lines = buffer.split('\n');
-      buffer = lines.pop() || '';
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split('\n');
+        buffer = lines.pop() || '';
 
-      for (const line of lines) {
-        if (line.startsWith('data: ')) {
-          try {
-            const data = JSON.parse(line.slice(6));
-            if (data.done) { onDone(); return; }
-            if (data.error) { onError(data.error); return; }
-            if (data.text) onChunk(data.text);
-          } catch {}
+        for (const line of lines) {
+          if (line.startsWith('data: ')) {
+            try {
+              const data = JSON.parse(line.slice(6));
+              if (data.done) { onDone(); return; }
+              if (data.error) { onError(data.error); return; }
+              if (data.text) { onChunk(data.text); receivedData = true; }
+            } catch {}
+          }
         }
       }
+
+      // Stream terminou sem data.done — se recebeu dados, considerar sucesso
+      if (receivedData) { onDone(); return; }
+
+      // Stream vazio — retry
+      if (attempt < MAX_RETRIES - 1) {
+        await new Promise(r => setTimeout(r, 3000));
+        continue;
+      }
+      onError('Roteiro vazio — OpenRouter não retornou conteúdo');
+      return;
+    } catch (err) {
+      if (attempt < MAX_RETRIES - 1) {
+        await new Promise(r => setTimeout(r, 3000));
+        continue;
+      }
+      onError(err.message || 'Erro de conexão');
     }
-    onDone();
-  } catch (err) {
-    onError(err.message || 'Erro de conexão');
   }
 }
 
