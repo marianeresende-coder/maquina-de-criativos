@@ -599,6 +599,23 @@ function AgentCard({ number, name, icon, status, description, children, timer })
   );
 }
 
+// Poll Creatomate render from frontend (evita timeout da serverless function)
+async function pollCreatomateRender(renderId, onProgress, maxMinutes = 10) {
+  const maxAttempts = maxMinutes * 12; // poll every 5s
+  for (let i = 0; i < maxAttempts; i++) {
+    await new Promise(r => setTimeout(r, 5000));
+    try {
+      const res = await fetch(`/api/poll-render?id=${renderId}`);
+      const data = await res.json();
+      if (data.status === 'completed' && data.url) return data.url;
+      if (data.status === 'failed') { onProgress && onProgress(`Erro: ${data.error || 'render falhou'}`); return null; }
+      onProgress && onProgress(`montando... (${Math.floor((i + 1) * 5 / 60)}min ${((i + 1) * 5) % 60}s)`);
+    } catch (e) { /* retry */ }
+  }
+  onProgress && onProgress('Timeout — render nao finalizou');
+  return null;
+}
+
 function Step3_Pipeline({ data, onReset }) {
   const projectName = data.projeto?.nome || 'Empreendimento';
 
@@ -627,7 +644,7 @@ function Step3_Pipeline({ data, onReset }) {
   const DRIVE = {
     fachada: 'https://lh3.googleusercontent.com/d/1gr6pI4ElrZK0gM4pJi-QgHqlVc91-0Nn=s1920',
     rooftop: 'https://lh3.googleusercontent.com/d/1rkssZ7grxxozxe8xlKN0LVc0hw4p2vl5=s1920',
-    localizacao: 'https://lh3.googleusercontent.com/d/13e96WR2Bs95nz8-7K288DFDxPdTcKRp0=s1920',
+    localizacao: 'https://lh3.googleusercontent.com/d/18aKptRoxehM5X-6tH0kkSiRcj3GBn1qC=s1920',
     monica: 'https://lh3.googleusercontent.com/d/1fnk4XbJ3vtkrrM5f0RAbTMSTFdOatsC9=s1920',
     refEstatico: 'https://lh3.googleusercontent.com/d/13G7xGya7gVAfP_EVTdOxQKoM5TvAU230=s1920',
   };
@@ -652,6 +669,14 @@ function Step3_Pipeline({ data, onReset }) {
       const result = await res.json();
       if (result.url) {
         setApprovedPieces(prev => ({ ...prev, [pieceNum]: { ...item, savedUrl: result.url } }));
+        // Trigger next piece generation sequentially
+        const next = pieceNum + 1;
+        if (next <= 3) {
+          setTimeout(() => generateNextPiece(next), 500);
+        } else {
+          setPhase('done');
+          setGenProgress('Todas as pecas aprovadas!');
+        }
       }
     } catch (err) {
       alert('Erro ao salvar: ' + err.message);
@@ -691,15 +716,22 @@ function Step3_Pipeline({ data, onReset }) {
     }
   }, [allRoteiros]);
 
-  // --- Generate all 3 pieces (2 versions each) ---
-  const generateAllPieces = async () => {
+  // --- Current piece being shown for approval ---
+  const [currentPiece, setCurrentPiece] = useState(0);
+
+  // --- Generate pieces sequentially: 1 at a time, show for approval ---
+  const generateNextPiece = async (pn) => {
     setGenStatus('running');
-    for (let pn = 1; pn <= 3; pn++) {
-      await generatePiece(pn);
-    }
+    setCurrentPiece(pn);
+    await generatePiece(pn);
     setGenStatus('success');
     setPhase('approval');
-    setGenProgress('Todas as pecas geradas. Revise e aprove.');
+    setGenProgress(`Peca ${pn} gerada. Revise e aprove.`);
+  };
+
+  // Legacy wrapper — starts the sequential flow from piece 1
+  const generateAllPieces = async () => {
+    await generateNextPiece(1);
   };
 
   // --- Generate 2 versions of 1 piece ---
@@ -708,7 +740,8 @@ function Step3_Pipeline({ data, onReset }) {
     const vers = [];
     const errs = [];
 
-    for (let v = 1; v <= 2; v++) {
+    const maxVersions = (pn === 1) ? 2 : 1; // Estatico: 2 versoes, Narrado/Apresentadora: 1
+    for (let v = 1; v <= maxVersions; v++) {
       try {
         if (pn === 1) {
           // === ESTATICO (GPT-5 Image via OpenRouter) ===
@@ -771,15 +804,24 @@ function Step3_Pipeline({ data, onReset }) {
             if (r.audio) audioUrl = `data:audio/mp3;base64,${r.audio}`;
           } catch (e) { errs.push(`v${v} audio: ${e.message}`); }
 
-          // Montar via Creatomate
+          // Montar via Creatomate (com polling no frontend)
           if (clips.length > 0) {
-            setGenProgress(`Narrado v${v} — montando video final...`);
+            setGenProgress(`Narrado v${v} — enviando para montagem...`);
             try {
               const res = await fetch('/api/compose-video', { method: 'POST', headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ clips, audioUrl, duration: 15, type: 'narrado' }) });
               const r = await res.json();
-              if (r.url) vers.push({ url: r.url, type: 'video', engine: 'creatomate', version: v });
-              else errs.push(`v${v} montagem: ${r.error || 'Sem URL'}`);
+              if (r.url) {
+                vers.push({ url: r.url, type: 'video', engine: 'creatomate', version: v });
+              } else if (r.renderId) {
+                // Polling no frontend
+                setGenProgress(`Narrado v${v} — montando video (pode levar alguns minutos)...`);
+                const videoUrl = await pollCreatomateRender(r.renderId, (msg) => setGenProgress(`Narrado v${v} — ${msg}`));
+                if (videoUrl) vers.push({ url: videoUrl, type: 'video', engine: 'creatomate', version: v });
+                else errs.push(`v${v} montagem: render falhou`);
+              } else {
+                errs.push(`v${v} montagem: ${r.error || 'Sem URL e sem renderId'}`);
+              }
             } catch (e) { errs.push(`v${v} montagem: ${e.message}`); }
           }
 
@@ -806,7 +848,7 @@ function Step3_Pipeline({ data, onReset }) {
             setGenProgress(`Apresentadora v${v} — ${CENAS[i].name} (${i + 1}/6)...`);
             try {
               const body = { prompt: CENAS[i].prompt, engine: CENAS[i].engine, imageUrl: CENAS[i].url, format: '9:16' };
-              if (CENAS[i].engine === 'veo3') { body.duration = '5s'; body.generateAudio = false; }
+              if (CENAS[i].engine === 'veo3') { body.duration = '6s'; body.generateAudio = false; }
               const res = await fetch('/api/generate-video', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
               const r = await res.json();
               if (r.url) clips.push({ url: r.url, lettering: letterings[i] || '', duration: 5 });
@@ -824,15 +866,23 @@ function Step3_Pipeline({ data, onReset }) {
             if (r.audio) audioUrl = `data:audio/mp3;base64,${r.audio}`;
           } catch (e) { errs.push(`v${v} audio: ${e.message}`); }
 
-          // Montar via Creatomate
+          // Montar via Creatomate (com polling no frontend)
           if (clips.length > 0) {
-            setGenProgress(`Apresentadora v${v} — montando video final...`);
+            setGenProgress(`Apresentadora v${v} — enviando para montagem...`);
             try {
               const res = await fetch('/api/compose-video', { method: 'POST', headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ clips, audioUrl, duration: 30, type: 'apresentadora' }) });
               const r = await res.json();
-              if (r.url) vers.push({ url: r.url, type: 'video', engine: 'creatomate', version: v });
-              else errs.push(`v${v} montagem: ${r.error || 'Sem URL'}`);
+              if (r.url) {
+                vers.push({ url: r.url, type: 'video', engine: 'creatomate', version: v });
+              } else if (r.renderId) {
+                setGenProgress(`Apresentadora v${v} — montando video (pode levar alguns minutos)...`);
+                const videoUrl = await pollCreatomateRender(r.renderId, (msg) => setGenProgress(`Apresentadora v${v} — ${msg}`));
+                if (videoUrl) vers.push({ url: videoUrl, type: 'video', engine: 'creatomate', version: v });
+                else errs.push(`v${v} montagem: render falhou`);
+              } else {
+                errs.push(`v${v} montagem: ${r.error || 'Sem URL e sem renderId'}`);
+              }
             } catch (e) { errs.push(`v${v} montagem: ${e.message}`); }
           }
         }
@@ -878,7 +928,7 @@ function Step3_Pipeline({ data, onReset }) {
         <div className="mt-6 fade-in space-y-4">
           <h3 className="font-display font-bold text-sm text-gray-500 mb-3 uppercase tracking-wider">Aprovacao dos Entregaveis</h3>
 
-          {[1, 2, 3].map(pn => {
+          {[1, 2, 3].filter(pn => pn <= currentPiece || approvedPieces[pn]).map(pn => {
             const pNames = { 1: 'Peca Estatica', 2: 'Video Narrado 15s', 3: 'Video Apresentadora 30s' };
             const icons = { 1: '🖼️', 2: '🎥', 3: '🎬' };
             const items = results[pn] || [];

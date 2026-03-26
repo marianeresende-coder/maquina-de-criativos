@@ -1,6 +1,6 @@
 // Monta vídeo final via Creatomate API
 // Recebe: clipes de vídeo (URLs) + áudio (URL) + letterings + duração
-// Retorna: URL do vídeo final montado (MP4)
+// Retorna: renderId para polling do frontend (não faz polling aqui)
 
 module.exports = async function handler(req, res) {
   if (req.method !== "POST") {
@@ -9,7 +9,7 @@ module.exports = async function handler(req, res) {
 
   const { clips, audioUrl, duration, type } = req.body;
   // clips: [{ url, lettering, duration }] — vídeos em sequência
-  // audioUrl: URL do áudio da narração (ElevenLabs)
+  // audioUrl: URL do áudio da narração (ElevenLabs) — pode ser data URI ou URL
   // duration: duração total em segundos (15 ou 30)
   // type: "narrado" ou "apresentadora"
 
@@ -20,6 +20,25 @@ module.exports = async function handler(req, res) {
   const apiKey = process.env.CREATOMATE_API_KEY;
   if (!apiKey) {
     return res.status(500).json({ error: "CREATOMATE_API_KEY not configured" });
+  }
+
+  // Se o áudio é base64, salvar no Vercel Blob primeiro (Creatomate precisa de URL)
+  let finalAudioUrl = audioUrl;
+  if (audioUrl && audioUrl.startsWith('data:')) {
+    try {
+      const { put } = require('@vercel/blob');
+      const base64Data = audioUrl.split(',')[1];
+      const audioBuffer = Buffer.from(base64Data, 'base64');
+      const blob = await put(`temp/audio-${Date.now()}.mp3`, audioBuffer, {
+        access: 'public',
+        contentType: 'audio/mpeg',
+        addRandomSuffix: true,
+      });
+      finalAudioUrl = blob.url;
+    } catch (e) {
+      console.error('Erro ao salvar áudio no Blob:', e);
+      // Continua com data URI como fallback
+    }
   }
 
   // Montar RenderScript — elementos na timeline
@@ -66,12 +85,12 @@ module.exports = async function handler(req, res) {
   }
 
   // Track 3: Áudio da narração por cima de tudo
-  if (audioUrl) {
+  if (finalAudioUrl) {
     elements.push({
       type: "audio",
       track: 3,
       time: 0,
-      source: audioUrl,
+      source: finalAudioUrl,
     });
   }
 
@@ -84,14 +103,14 @@ module.exports = async function handler(req, res) {
   };
 
   try {
-    // Criar render
-    const response = await fetch("https://api.creatomate.com/v2/renders", {
+    // Criar render — retorna imediatamente
+    const response = await fetch("https://api.creatomate.com/v1/renders", {
       method: "POST",
       headers: {
         "Authorization": `Bearer ${apiKey}`,
         "Content-Type": "application/json",
       },
-      body: JSON.stringify(renderScript),
+      body: JSON.stringify({ source: renderScript }),
     });
 
     if (!response.ok) {
@@ -100,34 +119,16 @@ module.exports = async function handler(req, res) {
     }
 
     const data = await response.json();
-
-    // Creatomate retorna array de renders
     const render = Array.isArray(data) ? data[0] : data;
     const renderId = render.id;
 
+    // Se já finalizou (improvável mas possível)
     if (render.status === "succeeded" && render.url) {
       return res.status(200).json({ url: render.url, renderId, status: "completed" });
     }
 
-    // Polling — aguardar render finalizar
-    const maxAttempts = 60; // 60 × 3s = 180s máximo
-    for (let i = 0; i < maxAttempts; i++) {
-      await new Promise(r => setTimeout(r, 3000));
-
-      const pollRes = await fetch(`https://api.creatomate.com/v2/renders/${renderId}`, {
-        headers: { "Authorization": `Bearer ${apiKey}` },
-      });
-      const pollData = await pollRes.json();
-
-      if (pollData.status === "succeeded" && pollData.url) {
-        return res.status(200).json({ url: pollData.url, renderId, status: "completed" });
-      }
-      if (pollData.status === "failed") {
-        return res.status(500).json({ error: "Creatomate render falhou", renderId, details: pollData.error_message });
-      }
-    }
-
-    return res.status(504).json({ error: "Timeout aguardando Creatomate", renderId });
+    // Retorna renderId para o frontend fazer polling
+    return res.status(200).json({ renderId, status: "processing" });
   } catch (error) {
     return res.status(500).json({ error: error.message });
   }
