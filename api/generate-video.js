@@ -71,11 +71,12 @@ module.exports = async function handler(req, res) {
       return res.status(500).json({ error: "fal.ai nao retornou request_id", raw: JSON.stringify(submitData).substring(0, 300) });
     }
 
-    // Retorna requestId pro frontend fazer polling
+    // Retorna URLs exatas do fal.ai (o path encurtado é diferente do falModel!)
     return res.status(200).json({
       status: "queued",
       requestId,
-      falModel,
+      statusUrl: submitData.status_url,
+      responseUrl: submitData.response_url,
       engine,
     });
   } catch (error) {

@@ -1,16 +1,15 @@
 // Poll status de um job de vídeo no fal.ai
-// GET /api/poll-video?id=REQUEST_ID&model=FAL_MODEL
+// GET /api/poll-video?statusUrl=URL&responseUrl=URL
 
 module.exports = async function handler(req, res) {
   if (req.method !== "GET") {
     return res.status(405).json({ error: "Method not allowed" });
   }
 
-  const requestId = req.query.id;
-  const falModel = req.query.model;
+  const { statusUrl, responseUrl } = req.query;
 
-  if (!requestId || !falModel) {
-    return res.status(400).json({ error: "id and model query params required" });
+  if (!statusUrl || !responseUrl) {
+    return res.status(400).json({ error: "statusUrl and responseUrl query params required" });
   }
 
   const falKey = process.env.FAL_KEY;
@@ -19,7 +18,7 @@ module.exports = async function handler(req, res) {
   }
 
   try {
-    const statusResponse = await fetch(`https://queue.fal.run/${falModel}/requests/${requestId}/status`, {
+    const statusResponse = await fetch(statusUrl, {
       headers: { "Authorization": `Key ${falKey}` },
     });
 
@@ -31,7 +30,7 @@ module.exports = async function handler(req, res) {
     const statusData = await statusResponse.json();
 
     if (statusData.status === "COMPLETED") {
-      const resultResponse = await fetch(`https://queue.fal.run/${falModel}/requests/${requestId}`, {
+      const resultResponse = await fetch(responseUrl, {
         headers: { "Authorization": `Key ${falKey}` },
       });
 
