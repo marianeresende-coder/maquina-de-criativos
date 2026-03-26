@@ -47,36 +47,42 @@ const PIECE_PROMPTS = {
 
 LEIA a seção "estrutura_criativos" do briefing antes de começar.
 
-A imagem de fundo será uma foto REAL de localização do Google Drive (NÃO gerar imagem por IA).
-Os dados do briefing serão sobrepostos como texto/lettering na imagem.
+# CONTEXTO IMPORTANTE
+A peça estática será gerada por IA (GPT-5 Image) que vai REPLICAR o layout de uma imagem de referência.
+A referência tem EXATAMENTE 10 elementos de texto — 3 fixos e 7 variáveis.
+Você deve preencher APENAS os 7 campos variáveis abaixo. NÃO adicione nenhum texto extra.
 
-Formato EXATO:
+# ELEMENTOS FIXOS (já estão na referência, NÃO incluir no roteiro):
+- Logo "seazone" (topo central)
+- Badge "LANÇAMENTO" (meio-esquerda, retângulo coral)
+- Disclaimer legal (rodapé, texto pequeno)
+
+# FORMATO EXATO — preencha SOMENTE estes 7 campos:
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 PEÇA ESTÁTICA
-Empreendimento: [nome do projeto]
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-  Imagem de fundo: Localização (foto real do Google Drive)
-  Headline: [frase de impacto com dado financeiro principal — ROI ou rentabilidade]
-  Subtexto: [localização + contexto do empreendimento]
-  Dados para overlay:
-    - [dado 1 — ex: ROI 16,40%]
-    - [dado 2 — ex: Rentabilidade líquida X%]
-    - [dado 3 — ex: Rendimento mensal R$ X.XXX]
-    - [dado 4 — ex: Valorização estimada X%]
-  CTA: [chamada para ação direta]
+CAMPO 1 — Nome do SPOT: [nome do empreendimento em CAIXA ALTA — ex: "NOVO CAMPECHE SPOT II"]
+CAMPO 2 — Badge distância: [distância + referência geográfica — ex: "Lançamento a 200 m da Praia do Campeche"]
+CAMPO 3 — Pin cidade: [cidade/estado — ex: "Florianópolis/SC"]
+CAMPO 4 — Headline: [frase curta para investidores, máx 10 palavras, com destaque em negrito — ex: "Para investidores que buscam **renda passiva** com Airbnb"]
+CAMPO 5 — Label dado: [rótulo do dado principal — ex: "Previsão de **renda futura**"]
+CAMPO 6 — Dado principal: [número + unidade, dado financeiro mais impactante — ex: "de **19,8%** líquidos ao ano"]
+CAMPO 7 — Complemento: [contexto curto do dado — ex: "com aluguel por temporada"]
 
-  DOs incluídos: [listar quais DOs do briefing foram contemplados]
-  Pontos fortes incluídos: [listar quais pontos fortes aparecem]
+DOs incluídos: [listar]
+Pontos fortes incluídos: [listar]
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 Regras:
-- Deve funcionar sozinha (sem contexto de vídeo)
-- Headline OBRIGATÓRIO com dado financeiro do briefing
-- TODOS os pontos fortes obrigatórios devem aparecer nos dados
+- EXATAMENTE 7 campos. NÃO adicione campos extras, bullets, listas ou dados adicionais
+- O CAMPO 6 deve conter o dado financeiro mais impactante do briefing (ROI, rentabilidade ou rendimento)
+- Headline (CAMPO 4) deve ser curta e direta — máximo 10 palavras
+- Dados financeiros EXATOS do briefing (nunca arredondar)
+- TODOS os pontos fortes obrigatórios devem estar contemplados nos 7 campos
 - TODOS os DOs devem estar contemplados
 - Nenhum DON'T pode aparecer
-- Dados financeiros EXATOS (nunca arredondar)`,
+- A peça deve funcionar sozinha (sem contexto de vídeo)`,
 
   2: `Gere o roteiro da PEÇA 2 — Vídeo Narrado (15s).
 

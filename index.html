@@ -747,13 +747,51 @@ function Step3_Pipeline({ data, onReset }) {
           // === ESTATICO (GPT-5 Image via OpenRouter) ===
           setGenProgress(`${names[pn]} v${v} — gerando via GPT-5 Image...`);
           const roteiro = roteiroTexts[1] || '';
-          const hl = (roteiro.match(/Headline:\s*(.+)/) || [])[1] || 'Investimento inteligente';
-          const sub = (roteiro.match(/Subtexto:\s*(.+)/) || [])[1] || 'Campeche, Florianopolis';
-          const cta = (roteiro.match(/CTA:\s*(.+)/) || [])[1] || 'Saiba mais';
-          const dadosBlock = (roteiro.match(/Dados para overlay:\s*([\s\S]*?)(?=\n\s*CTA:|DOs|$)/) || [])[1] || '';
-          const dados = dadosBlock.trim().replace(/\n\s*-\s*/g, ', ').replace(/^-\s*/, '');
 
-          const prompt = `Voce recebeu 2 imagens: a PRIMEIRA e a foto de fundo (localizacao real do empreendimento) e a SEGUNDA e a REFERENCIA DE LAYOUT que voce deve replicar. Gere uma imagem de anuncio de marketing imobiliario 9:16 (vertical, story). USE A PRIMEIRA IMAGEM COMO FUNDO da peca. REPLIQUE EXATAMENTE o layout da SEGUNDA imagem (referencia): badge "Lancamento" no topo direito, headline grande "${hl}" em branco, card azul escuro com bullets coral mostrando os dados: ${dados}. Pin coral de localizacao "${sub}". Botao CTA coral "${cta}" no rodape. A foto de fundo deve ser a primeira imagem (localizacao). Marca Seazone: azul marinho #011337, coral #F1605D, branco. Design premium, limpo, moderno. Versao ${v}.`;
+          // Extrair os 7 campos do roteiro
+          const campo = (n, fallback) => {
+            const re = new RegExp(`CAMPO ${n}[^:]*:\\s*(.+)`, 'i');
+            return (roteiro.match(re) || [])[1]?.trim() || fallback;
+          };
+          const nomeSpot = campo(1, 'NOVO CAMPECHE SPOT II');
+          const badgeDistancia = campo(2, 'Lançamento a 200 m da Praia do Campeche');
+          const pinCidade = campo(3, 'Florianópolis/SC');
+          const headline = campo(4, 'Para investidores que buscam renda passiva com Airbnb').replace(/\*\*/g, '');
+          const labelDado = campo(5, 'Previsão de renda futura').replace(/\*\*/g, '');
+          const dadoPrincipal = campo(6, 'de 19,8% líquidos ao ano').replace(/\*\*/g, '');
+          const complemento = campo(7, 'com aluguel por temporada');
+
+          // Prompt FIXO — descreve o layout exato da referencia, so troca os textos
+          const prompt = `You are a graphic designer. Generate a real estate marketing poster in 9:16 vertical format (1080x1350px).
+
+CRITICAL: You MUST replicate the EXACT layout of the second image (reference). Copy the same fonts, colors, spacing, element sizes and positions. The ONLY things that change are the background photo (use the first image) and the text content (listed below).
+
+EXACT LAYOUT (top to bottom):
+1. BACKGROUND: Use the first image as full-bleed background. Apply a dark navy gradient overlay on the bottom 50% (fading from transparent to #011337).
+2. TOP CENTER: White "seazone" logo with the orange pin icon replacing the "a".
+3. BELOW LOGO: Red/coral badge with white text "${nomeSpot}" in bold caps — same style as "NATAL SPOT" in reference.
+4. RIGHT SIDE (mid-top): White rounded card with text "${badgeDistancia}" and a small red map pin icon. Same style as the reference card.
+5. LEFT SIDE (middle): Small coral map pin icon + "${pinCidade}" in white text.
+6. LEFT SIDE (below pin): Coral/red rectangle badge with white bold text "LANÇAMENTO" — exactly like reference.
+7. RIGHT OF BADGE: White text "${headline}" — key words in BOLD white, rest in regular weight. Same font size as reference.
+8. BOTTOM SECTION - LEFT: White text "${labelDado}" — key words in BOLD. Same size as reference.
+9. BOTTOM SECTION - RIGHT: Dark navy rounded rectangle card containing "${dadoPrincipal}" — the percentage number must be VERY LARGE (biggest text on the poster), white bold. Same card style as reference.
+10. BELOW CARD: White text "${complemento}" — smaller, centered under the card.
+11. VERY BOTTOM: Tiny light gray disclaimer text (legal fine print, barely readable).
+
+COLOR PALETTE (exact):
+- Navy: #011337 (gradient, cards)
+- Coral/Red: #F1605D (badges, pins, accents)
+- White: #FFFFFF (text, logo)
+
+ABSOLUTE RULES:
+- Copy the reference layout EXACTLY — same positions, same sizes, same fonts, same spacing
+- Do NOT add any extra text, bullets, icons, or elements that are not in the reference
+- Do NOT rearrange elements — follow the exact top-to-bottom flow
+- The poster must have EXACTLY 10 text elements as described above, NO MORE
+- The big number in the navy card (item 9) must be the largest text on the entire poster
+- Background photo should show through clearly in the top half
+- Version ${v}`;
 
           const res = await fetch('/api/generate-static', {
             method: 'POST',
