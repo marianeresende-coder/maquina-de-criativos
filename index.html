@@ -729,6 +729,12 @@ function Step3_Pipeline({ data, onReset }) {
         });
         const result = await res.json();
         if (!res.ok) throw new Error(result.error || `Erro no Agente 04 peça ${pn}`);
+        // Garantir que pieceNumber e type estão setados
+        const pieceTypes = { 1: 'estatico', 2: 'narrado', 3: 'apresentadora' };
+        result.pieceNumber = pn;
+        result.type = result.type || pieceTypes[pn];
+        // Garantir que scenes tem sceneNumber
+        (result.scenes || []).forEach((s, i) => { s.sceneNumber = s.sceneNumber || (i + 1); });
         allPieces.push(result);
       }
 
@@ -788,8 +794,14 @@ function Step3_Pipeline({ data, onReset }) {
               prompt: staticPrompt,
               headline, subtitle, cta, dataOverlay,
             });
+          } else {
+            console.error('Estático sem URL:', result);
+            setGenProgress(`Peça 1 — Erro: ${result.error || 'Sem URL no resultado'}`);
+            allMedia.push({ piece: pn, scene: 1, engine: 'flux', type: 'image', error: result.error || 'Sem URL' });
           }
         } catch (err) {
+          console.error('Estático erro:', err);
+          setGenProgress(`Peça 1 — Erro: ${err.message}`);
           allMedia.push({ piece: pn, scene: 1, engine: 'flux', type: 'image', error: err.message });
         }
         setGeneratedImages([...allMedia]);
@@ -1073,6 +1085,7 @@ function Step3_Pipeline({ data, onReset }) {
             const pieceNames = { 1: 'Peça Estática', 2: 'Vídeo Narrado 15s', 3: 'Vídeo Apresentadora 30s' };
             const pieceIcons = { 1: '🖼️', 2: '🎥', 3: '🎬' };
             const items = generatedImages.filter(i => i.url && i.piece === pn);
+            const errors = generatedImages.filter(i => i.error && i.piece === pn);
             const saved = approvedPieces[pn] || [];
             const isSaving = savingPiece === pn;
             const isApproved = saved.length > 0;
@@ -1175,14 +1188,14 @@ function Step3_Pipeline({ data, onReset }) {
                       {/* Referência — Estático.png do Drive */}
                       <div>
                         <p className="text-[10px] font-bold text-gray-500 mb-1 uppercase">Referência (copiar hierarquia)</p>
-                        <div className="rounded-lg overflow-hidden border-2 border-dashed border-orange-300" style={{aspectRatio: '9/16'}}>
+                        <div className="rounded-lg overflow-hidden border-2 border-dashed border-orange-300">
                           <img
                             src="https://lh3.googleusercontent.com/d/13G7xGya7gVAfP_EVTdOxQKoM5TvAU230=s1920"
                             alt="Referência estático"
-                            className="w-full h-full object-cover"
+                            className="w-full h-auto"
                           />
                         </div>
-                        <p className="text-[10px] text-orange-600 mt-1">Hierarquia: badge topo, headline, caixa dados com bullets, pin localização, CTA base</p>
+                        <p className="text-[10px] text-orange-600 mt-1">Copiar: layout, posição dos elementos, caixas, ícones, hierarquia de texto</p>
                       </div>
                     </div>
                   </div>
@@ -1202,6 +1215,17 @@ function Step3_Pipeline({ data, onReset }) {
                           C{item.scene} — {item.engine}
                         </div>
                       </div>
+                    ))}
+                  </div>
+                )}
+
+                {/* Show errors */}
+                {errors.length > 0 && (
+                  <div className="mt-2 space-y-1">
+                    {errors.map((e, idx) => (
+                      <p key={idx} className="text-xs text-red-600 bg-red-50 px-2 py-1 rounded">
+                        Erro cena {e.scene}: {e.error}
+                      </p>
                     ))}
                   </div>
                 )}
