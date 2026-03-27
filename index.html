@@ -1289,11 +1289,148 @@ function FinalPanel({ state, dispatch }) {
 }
 
 // ============================================================
+// GALERIA DE APROVADOS
+// ============================================================
+
+function GaleriaAprovados() {
+  const [files, setFiles] = useState(null);
+  const [error, setError] = useState(null);
+
+  useEffect(() => {
+    fetch('/api/list-approved')
+      .then(r => r.json())
+      .then(data => setFiles(data.files || []))
+      .catch(err => setError(err.message));
+  }, []);
+
+  const ICONS = { estatico: '🖼️', narrado: '🎥', apresentadora: '🎬' };
+  const LABELS = { estatico: 'Peca Estatica', narrado: 'Video Narrado 15s', apresentadora: 'Video Apresentadora 30s' };
+
+  // Agrupar por projeto e tipo
+  const projects = {};
+  if (files) {
+    files.forEach(file => {
+      const parts = file.pathname.split('/');
+      const proj = parts[1] || 'sem-projeto';
+      const tipo = parts[2] || 'outro';
+      if (!projects[proj]) projects[proj] = {};
+      if (!projects[proj][tipo]) projects[proj][tipo] = [];
+      projects[proj][tipo].push(file);
+    });
+  }
+
+  return (
+    <div className="min-h-screen bg-gray-50">
+      <header className="bg-sea-dark text-white">
+        <div className="max-w-5xl mx-auto px-4 py-4 flex items-center gap-3">
+          <div className="w-8 h-8 bg-sea-coral rounded-lg flex items-center justify-center">
+            <span className="font-bold text-sm">S</span>
+          </div>
+          <div>
+            <h1 className="font-display font-bold text-lg leading-tight">Entregaveis Aprovados</h1>
+            <p className="text-[10px] text-white/50">Seazone — Maquina de Criativos</p>
+          </div>
+        </div>
+      </header>
+
+      <div className="max-w-5xl mx-auto px-4 py-8">
+        {!files && !error && (
+          <div className="text-center py-12">
+            <div className="w-12 h-12 border-4 border-sea-coral border-t-transparent rounded-full spinner mx-auto mb-4" />
+            <p className="text-gray-500">Carregando entregaveis...</p>
+          </div>
+        )}
+
+        {error && (
+          <div className="text-center py-16">
+            <div className="text-5xl mb-4">❌</div>
+            <h2 className="font-display font-bold text-xl mb-2">Erro ao carregar</h2>
+            <p className="text-gray-500 text-sm">{error}</p>
+          </div>
+        )}
+
+        {files && files.length === 0 && (
+          <div className="text-center py-16">
+            <div className="text-5xl mb-4">📭</div>
+            <h2 className="font-display font-bold text-xl mb-2">Nenhum entregavel aprovado ainda</h2>
+            <p className="text-gray-500 text-sm mb-6">Gere criativos na Maquina de Criativos e aprove para ver aqui.</p>
+            <a href="/" className="bg-sea-coral hover:bg-sea-coral/90 text-white font-bold px-6 py-3 rounded-lg text-sm inline-block">Ir para Maquina de Criativos</a>
+          </div>
+        )}
+
+        {files && files.length > 0 && Object.entries(projects).map(([proj, tipos]) => {
+          const displayName = proj.replace(/-/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+          return (
+            <div key={proj} className="mb-10 fade-in">
+              <div className="flex items-center gap-3 mb-6">
+                <div className="w-10 h-10 bg-sea-dark rounded-xl flex items-center justify-center text-lg text-white font-bold">🏢</div>
+                <div>
+                  <h2 className="font-display font-bold text-xl">{displayName}</h2>
+                  <p className="text-xs text-gray-500">{Object.values(tipos).flat().length} entregavel(is)</p>
+                </div>
+              </div>
+
+              {Object.entries(tipos).map(([tipo, items]) => (
+                <div key={tipo} className="mb-6">
+                  <div className="flex items-center gap-2 mb-3">
+                    <span className="text-lg">{ICONS[tipo] || '📄'}</span>
+                    <h3 className="font-display font-bold text-sm text-gray-700">{LABELS[tipo] || tipo}</h3>
+                    <span className="text-xs bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded-full">Aprovado</span>
+                  </div>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {items.map((file, i) => {
+                      const isVideo = file.pathname.endsWith('.mp4') || file.pathname.endsWith('.webm');
+                      const fileName = file.pathname.split('/').pop();
+                      const size = file.size ? (file.size / 1024 / 1024).toFixed(1) + ' MB' : '';
+                      const date = file.uploadedAt ? new Date(file.uploadedAt).toLocaleDateString('pt-BR') : '';
+                      return (
+                        <div key={i} className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+                          {isVideo ? (
+                            <video src={file.url} controls className="w-full" />
+                          ) : (
+                            <img src={file.url} alt={fileName} className="w-full" />
+                          )}
+                          <div className="p-3 flex items-center justify-between">
+                            <div>
+                              <p className="text-xs font-medium text-gray-700">{fileName}</p>
+                              <p className="text-[10px] text-gray-400">{size}{date ? ` • ${date}` : ''}</p>
+                            </div>
+                            <a href={file.downloadUrl || file.url} target="_blank" rel="noopener" download
+                              className="bg-sea-dark hover:bg-sea-dark/80 text-white font-bold px-3 py-1.5 rounded-lg text-[10px]">
+                              Baixar
+                            </a>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              ))}
+            </div>
+          );
+        })}
+
+        {files && files.length > 0 && (
+          <div className="text-center py-8 border-t border-gray-200 mt-8">
+            <p className="text-xs text-gray-400 mb-3">Gerado pela Maquina de Criativos — Seazone</p>
+            <a href="/" className="text-sea-coral hover:underline text-sm font-medium">← Voltar para Maquina de Criativos</a>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ============================================================
 // MAIN APP
 // ============================================================
 
 function App() {
   const [state, dispatch] = useReducer(appReducer, initialState);
+
+  // Detectar se a URL é /aprovados
+  const isAprovados = window.location.pathname === '/aprovados';
+  if (isAprovados) return <GaleriaAprovados />;
 
   const renderPage = () => {
     switch (state.page) {

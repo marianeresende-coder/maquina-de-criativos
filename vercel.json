@@ -31,7 +31,6 @@
   },
   "rewrites": [
     { "source": "/api/(.*)", "destination": "/api/$1" },
-    { "source": "/aprovados", "destination": "/api/aprovados" },
     { "source": "/(.*)", "destination": "/index.html" }
   ]
 }
