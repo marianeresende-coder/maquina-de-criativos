@@ -937,10 +937,10 @@ function Agent05({ state, dispatch }) {
     for (let batch = 0; batch < 3; batch++) {
       const batchNames = ['Fachada', 'Rooftop', 'Localizacao'];
       setProgress(`Bloco ${batch + 1}/3 (${batchNames[batch]})...`);
-      dispatch({ type: 'ADD_CHAT', agent: 'agent05', text: `Gerando clips do bloco ${batch + 1}/3 (${batchNames[batch]}) via Kling...`, msgType: 'progress' });
+      dispatch({ type: 'ADD_CHAT', agent: 'agent05', text: `Gerando clips do bloco ${batch + 1}/3 (${batchNames[batch]}) via Kling 3.0 Pro...`, msgType: 'progress' });
       const batchCenas = CENAS.slice(batch * 3, batch * 3 + 3);
       const batchResults = await Promise.all(batchCenas.map(async (cena) => {
-        const r = await generateVideo({ prompt: cena.prompt, engine: 'kling', imageUrl: cena.url, format: '9:16' });
+        const r = await generateVideo({ prompt: cena.prompt, engine: 'kling3', imageUrl: cena.url, format: '9:16', duration: '5' });
         if (r.url) return { url: r.url, lettering: letterings[cena.bloco] || '', duration: cena.clipDuration };
         errs.push(`${cena.name}: ${r.error || 'Sem URL'}`); return null;
       }));
@@ -979,37 +979,36 @@ function Agent05({ state, dispatch }) {
     const letterings = letteringMatches.map(l => l.replace(/Lettering:\s*/, '').replace(/\s*\(\d+\s*palavras?\)\s*/gi, '').replace(/\s*\[\d+\s*palavras?\]\s*/gi, '').trim());
     const fullNarration = falas.join(' ') || 'Eu sou a Monica, socia fundadora da Seazone.';
 
-    const MONICA_PHOTOS = [DRIVE.monica, 'https://lh3.googleusercontent.com/d/1fiiABMSD7pmkS5OfxazrgOu7LZuj2E9W=s1920'];
     const CENAS = [
-      { name: 'Monica Intro', engine: 'kling3', url: MONICA_PHOTOS[0], clipDuration: 8, prompt: 'Brazilian woman with brown hair walking on the beach barefoot on the sand, speaking naturally to camera, confident and approachable, golden hour warm light, ocean waves in background, wearing casual elegant outfit, speaking in Brazilian Portuguese, cinematic shallow depth of field' },
-      { name: 'Fachada', engine: 'kling', url: DRIVE.fachada, clipDuration: 5, prompt: 'Slow cinematic tilt up modern building facade, golden hour, premium architecture, warm light' },
-      { name: 'Rooftop', engine: 'kling', url: DRIVE.rooftop, clipDuration: 5, prompt: 'Gentle pan luxury rooftop infinity pool, ocean panorama view, golden hour, resort feel' },
-      { name: 'Localizacao', engine: 'kling', url: DRIVE.localizacao, clipDuration: 5, prompt: 'Aerial push forward Brazilian coastline, turquoise ocean, white sand beach, golden hour' },
-      { name: 'Monica CTA', engine: 'kling3', url: MONICA_PHOTOS[1], clipDuration: 7, prompt: 'Brazilian woman on the beach smiling, speaking with enthusiasm to camera, warm golden hour, ocean behind, natural and inviting tone, cinematic vertical video' },
+      { name: 'Monica Intro', engine: 'kling3-text', clipDuration: 8, prompt: 'A confident Brazilian woman in her 30s with shoulder-length brown hair, walking barefoot on a tropical beach at golden hour. She is speaking directly to camera in Brazilian Portuguese with a natural, approachable smile. She wears a casual elegant linen outfit. Warm sunset light, ocean waves gently rolling behind her. Cinematic vertical video, shallow depth of field, handheld camera feel following her as she walks. She gestures naturally while speaking, like a real estate CEO presenting her company.' },
+      { name: 'Fachada', engine: 'kling3', url: DRIVE.fachada, clipDuration: 5, prompt: 'Slow cinematic tilt up modern building facade, golden hour, premium architecture, warm light' },
+      { name: 'Rooftop', engine: 'kling3', url: DRIVE.rooftop, clipDuration: 5, prompt: 'Gentle pan luxury rooftop infinity pool, ocean panorama view, golden hour, resort feel' },
+      { name: 'Localizacao', engine: 'kling3', url: DRIVE.localizacao, clipDuration: 5, prompt: 'Aerial push forward Brazilian coastline, turquoise ocean, white sand beach, golden hour' },
+      { name: 'Monica CTA', engine: 'kling3-text', clipDuration: 7, prompt: 'Close-up of a confident Brazilian woman in her 30s with brown hair on a tropical beach at sunset. She is speaking enthusiastically to camera in Brazilian Portuguese, smiling warmly, making eye contact. Golden hour backlight, ocean waves behind her, warm tropical tones. She finishes speaking with an inviting gesture. Cinematic vertical video, shallow depth of field.' },
     ];
 
     const vers = [];
     const errs = [];
     const clips = new Array(CENAS.length).fill(null);
 
-    // Monica clips
-    setProgress('Gerando clips da Monica (Kling 3.0 Pro)...');
-    dispatch({ type: 'ADD_CHAT', agent: 'agent05', text: 'Gerando clips da Monica via Kling 3.0 Pro...', msgType: 'progress' });
-    const monicaCenas = CENAS.map((c, i) => ({ ...c, idx: i })).filter(c => c.engine === 'kling3');
+    // Monica clips (text-to-video — sem foto, gera do zero com prompt descritivo)
+    setProgress('Gerando clips da Monica (Kling 3.0 Pro text-to-video)...');
+    dispatch({ type: 'ADD_CHAT', agent: 'agent05', text: 'Gerando clips da Monica na praia via Kling 3.0 Pro (text-to-video)...', msgType: 'progress' });
+    const monicaCenas = CENAS.map((c, i) => ({ ...c, idx: i })).filter(c => c.engine === 'kling3-text');
     await Promise.all(monicaCenas.map(async (cena) => {
-      const r = await generateVideo({ prompt: cena.prompt, engine: 'kling3', imageUrl: cena.url, format: '9:16', duration: '10' });
+      const r = await generateVideo({ prompt: cena.prompt, engine: 'kling3-text', format: '9:16', duration: '10' });
       if (r.url) clips[cena.idx] = { url: r.url, lettering: letterings[cena.idx] || '', duration: cena.clipDuration };
       else errs.push(`${cena.name}: ${r.error || 'Sem URL'}`);
     }));
 
     await new Promise(r => setTimeout(r, 2000));
 
-    // Empreendimento clips
-    setProgress('Gerando cenas do empreendimento...');
-    dispatch({ type: 'ADD_CHAT', agent: 'agent05', text: 'Gerando cenas do empreendimento via Kling...', msgType: 'progress' });
-    const empCenas = CENAS.map((c, i) => ({ ...c, idx: i })).filter(c => c.engine === 'kling');
+    // Empreendimento clips (Kling 3.0 Pro image-to-video — melhor qualidade)
+    setProgress('Gerando cenas do empreendimento (Kling 3.0 Pro)...');
+    dispatch({ type: 'ADD_CHAT', agent: 'agent05', text: 'Gerando cenas do empreendimento via Kling 3.0 Pro...', msgType: 'progress' });
+    const empCenas = CENAS.map((c, i) => ({ ...c, idx: i })).filter(c => c.engine === 'kling3');
     await Promise.all(empCenas.map(async (cena) => {
-      const r = await generateVideo({ prompt: cena.prompt, engine: 'kling', imageUrl: cena.url, format: '9:16' });
+      const r = await generateVideo({ prompt: cena.prompt, engine: 'kling3', imageUrl: cena.url, format: '9:16', duration: '5' });
       if (r.url) clips[cena.idx] = { url: r.url, lettering: letterings[cena.idx] || '', duration: cena.clipDuration };
       else errs.push(`${cena.name}: ${r.error || 'Sem URL'}`);
     }));

@@ -43,8 +43,16 @@ module.exports = async function handler(req, res) {
       duration: duration || "10",
       aspect_ratio: "9:16",
     };
+  } else if (engine === "kling3-text") {
+    // Kling 3.0 Pro text-to-video (sem imagem de referência)
+    falModel = "fal-ai/kling-video/v3/pro/text-to-video";
+    body = {
+      prompt,
+      duration: duration || "10",
+      aspect_ratio: "9:16",
+    };
   } else {
-    return res.status(400).json({ error: "engine must be 'kling' or 'kling3'" });
+    return res.status(400).json({ error: "engine must be 'kling', 'kling3' or 'kling3-text'" });
   }
 
   // SEM RETRY — fal.ai cobra por chamada, mesmo em erro.
