@@ -823,65 +823,40 @@ function Agent04({ state, dispatch }) {
     const complemento = campo(7, 'com aluguel por temporada');
 
     for (let v = 1; v <= 2; v++) {
-      setProgress(`Gerando versao ${v}/2 via GPT-5 Image...`);
-      dispatch({ type: 'ADD_CHAT', agent: 'agent04', text: `Gerando versao ${v} via GPT-5 Image...`, msgType: 'progress' });
+      setProgress(`Gerando versao ${v}/2 via FLUX Kontext Pro...`);
+      dispatch({ type: 'ADD_CHAT', agent: 'agent04', text: `Gerando versao ${v} via FLUX Kontext Pro...`, msgType: 'progress' });
 
-      const prompt = `You are a graphic designer. Generate a real estate marketing poster in 4:5 format (1080x1350px).
+      // FLUX Kontext edita a referência — troca os textos mantendo o layout
+      const prompt = `Edit this real estate marketing poster. Keep the EXACT same layout, colors, fonts, positions, and design elements. ONLY change the text content as follows:
 
-CRITICAL: You MUST replicate the EXACT layout of the second image (reference). Copy the same fonts, colors, spacing, element sizes and EXACT POSITIONS. The ONLY things that change are the background photo (use the first image) and the text content (listed below).
+REPLACE the property name pin (coral/red pin badge) with: "${nomeSpot}"
+REPLACE the distance badge (white rounded card, top-right) with: "${badgeDistancia}"
+REPLACE the city pin text with: "${pinCidade}"
+REPLACE the headline text (next to LANCAMENTO badge) with: "${headline}"
+REPLACE the data label (bottom-left) with: "${labelDado}"
+REPLACE the big number in the navy card (bottom-right) with: "${dadoPrincipal}"
+REPLACE the small text below the card with: "${complemento}"
 
-EXACT LAYOUT (top to bottom) — every element MUST be in the SAME POSITION as the reference:
-1. BACKGROUND: Use the first image as full-bleed background (1080x1350). Apply a dark navy gradient overlay on the bottom 50% (fading from transparent to #011337).
-2. TOP CENTER: White "seazone" logo with the orange pin icon replacing the "a". SAME position as reference.
-3. BELOW LOGO: Red/coral location pin badge with white text "${nomeSpot}" in bold caps. THIS IS A LOCATION PIN — it marks where the property is on the image. It MUST stay in the EXACT SAME POSITION as the reference (do NOT move it). Same style as "NATAL SPOT" in reference.
-4. RIGHT SIDE (mid-top): White rounded card with text "${badgeDistancia}" and a small red map pin icon. SAME position as reference.
-5. LEFT SIDE (middle): Small coral map pin icon + "${pinCidade}" in white text. SAME position as reference.
-6. LEFT SIDE (below pin): Coral/red rectangle badge with white bold text "LANCAMENTO" — SAME position as reference.
-7. RIGHT OF BADGE: White text "${headline}" — key words in BOLD white, rest in regular weight. SAME position and font size as reference.
-8. BOTTOM SECTION - LEFT: White text "${labelDado}" — key words in BOLD. SAME position as reference.
-9. BOTTOM SECTION - RIGHT: Dark navy rounded rectangle card containing "${dadoPrincipal}" — the percentage number must be VERY LARGE (biggest text on the poster), white bold. SAME card style and position as reference.
-10. BELOW CARD: White text "${complemento}" — smaller, centered under the card.
-11. VERY BOTTOM: Tiny light gray disclaimer text (legal fine print, barely readable).
+KEEP UNCHANGED: the Seazone logo, the "LANCAMENTO" badge, the background photo, all colors (#011337 navy, #F1605D coral, white), all element positions and sizes, the gradient overlay, the disclaimer text at the bottom.
 
-COLOR PALETTE (exact):
-- Navy: #011337 (gradient, cards)
-- Coral/Red: #F1605D (badges, pins, accents)
-- White: #FFFFFF (text, logo)
-
-ABSOLUTE RULES:
-- Output size MUST be exactly 1080x1350 pixels (4:5 feed format)
-- Copy the reference layout EXACTLY — same positions, same sizes, same fonts, same spacing
-- The orange/coral pin with "${nomeSpot}" (item 3) is a LOCATION MARKER — do NOT move it from its reference position
-- Do NOT add any extra text, bullets, icons, or elements that are not in the reference
-- Do NOT rearrange or reposition ANY element — every element stays where it is in the reference
-- The poster must have EXACTLY 10 text elements as described above, NO MORE
-- The big number in the navy card (item 9) must be the largest text on the entire poster
-- Background photo should show through clearly in the top half
-- Version ${v}`;
+The poster format is 4:5 (1080x1350px). Do NOT move, resize, or remove any design element. Only the text content changes.`;
 
       let staticResult = null;
-      for (let fetchAttempt = 0; fetchAttempt < 2; fetchAttempt++) {
-        try {
-          const res = await fetch('/api/generate-static', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ prompt, referenceImageUrl: DRIVE.refEstatico, backgroundImageUrl: DRIVE.localizacao }),
-          });
-          const rawText = await res.text();
-          try { staticResult = JSON.parse(rawText); } catch {
-            if (fetchAttempt === 0) { await new Promise(r => setTimeout(r, 5000)); continue; }
-            errs.push(`v${v}: API retornou erro: ${rawText.substring(0, 150)}`); break;
-          }
-          if (staticResult.url) break;
-          if (staticResult.error && fetchAttempt === 0) { await new Promise(r => setTimeout(r, 5000)); staticResult = null; continue; }
-          break;
-        } catch (fetchErr) {
-          if (fetchAttempt === 0) { await new Promise(r => setTimeout(r, 5000)); continue; }
-          errs.push(`v${v}: ${fetchErr.message}`); break;
+      try {
+        const res = await fetch('/api/generate-static', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ prompt, referenceImageUrl: DRIVE.refEstatico }),
+        });
+        const rawText = await res.text();
+        try { staticResult = JSON.parse(rawText); } catch {
+          errs.push(`v${v}: API retornou erro: ${rawText.substring(0, 150)}`);
         }
+      } catch (fetchErr) {
+        errs.push(`v${v}: ${fetchErr.message}`);
       }
       if (staticResult?.url) {
-        vers.push({ url: staticResult.url, type: 'image', engine: 'gpt5-image', version: v });
+        vers.push({ url: staticResult.url, type: 'image', engine: 'flux-kontext-pro', version: v });
         dispatch({ type: 'ADD_CHAT', agent: 'agent04', text: `Versao ${v} gerada com sucesso!`, msgType: 'success' });
       } else if (staticResult?.error) {
         errs.push(`v${v}: ${staticResult.error}`);
@@ -1245,7 +1220,7 @@ function FinalPanel({ state, dispatch }) {
         <div className="bg-white/10 rounded-lg p-5 mb-6 text-left max-w-md mx-auto">
           <p className="text-xs font-bold text-white/80 mb-3 uppercase">IAs utilizadas no resultado final:</p>
           <div className="space-y-2 text-sm text-white/70">
-            <p>🖼️ <strong className="text-white">GPT-5 Image</strong> — peca estatica</p>
+            <p>🖼️ <strong className="text-white">FLUX Kontext Pro</strong> — peca estatica</p>
             <p>🎬 <strong className="text-white">Kling v2.1</strong> — animacao de cenas (fachada, rooftop, localizacao)</p>
             <p>👩 <strong className="text-white">Kling 3.0 Pro</strong> — video da Monica apresentadora</p>
             <p>🎙️ <strong className="text-white">ElevenLabs</strong> — voz clonada da Monica</p>
