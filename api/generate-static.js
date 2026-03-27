@@ -1,19 +1,19 @@
 // Gera peça estática via FLUX.1 Kontext Pro (fal.ai)
-// Recebe: prompt + referenceImageUrl (Estático.png como base para edição)
-// FLUX Kontext edita a referência trocando os textos/dados do briefing
+// Recebe: prompt + imageUrl (foto de localização como base)
+// FLUX Kontext adiciona o layout de marketing por cima da foto
 
 module.exports = async function handler(req, res) {
   if (req.method !== "POST") {
     return res.status(405).json({ error: "Method not allowed" });
   }
 
-  const { prompt, referenceImageUrl } = req.body;
+  const { prompt, imageUrl } = req.body;
 
   if (!prompt) {
     return res.status(400).json({ error: "prompt required" });
   }
-  if (!referenceImageUrl) {
-    return res.status(400).json({ error: "referenceImageUrl required" });
+  if (!imageUrl) {
+    return res.status(400).json({ error: "imageUrl required" });
   }
 
   const falKey = process.env.FAL_KEY;
@@ -31,11 +31,12 @@ module.exports = async function handler(req, res) {
       },
       body: JSON.stringify({
         prompt,
-        image_url: referenceImageUrl,
+        image_url: imageUrl,
         output_format: "png",
-        guidance_scale: 4.0,
+        guidance_scale: 4.5,
         num_images: 1,
         safety_tolerance: "5",
+        aspect_ratio: "3:4",
       }),
     });
 
@@ -52,24 +53,20 @@ module.exports = async function handler(req, res) {
       return res.status(500).json({ error: `fal.ai retornou texto invalido: ${rawBody.substring(0, 200)}` });
     }
 
-    // FLUX Kontext retorna { images: [{ url, width, height }] }
-    const imageUrl = data.images?.[0]?.url || null;
+    const imageResult = data.images?.[0]?.url || null;
 
-    if (!imageUrl) {
+    if (!imageResult) {
       return res.status(500).json({ error: "FLUX Kontext nao retornou imagem", raw: JSON.stringify(data).substring(0, 300) });
     }
 
     return res.status(200).json({
-      url: imageUrl,
+      url: imageResult,
       status: "completed",
       engine: "flux-kontext-pro",
       width: data.images[0].width,
       height: data.images[0].height,
     });
   } catch (error) {
-    if (error.name === 'AbortError') {
-      return res.status(504).json({ error: "Timeout" });
-    }
     return res.status(500).json({ error: error.message });
   }
 };

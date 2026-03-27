@@ -826,27 +826,32 @@ function Agent04({ state, dispatch }) {
       setProgress(`Gerando versao ${v}/2 via FLUX Kontext Pro...`);
       dispatch({ type: 'ADD_CHAT', agent: 'agent04', text: `Gerando versao ${v} via FLUX Kontext Pro...`, msgType: 'progress' });
 
-      // FLUX Kontext edita a referência — troca os textos mantendo o layout
-      const prompt = `Edit this real estate marketing poster. Keep the EXACT same layout, colors, fonts, positions, and design elements. ONLY change the text content as follows:
+      // FLUX Kontext — foto de localização como base, layout adicionado por cima
+      const prompt = `Transform this aerial/location photo into a premium real estate marketing poster (4:5 format). Add the following overlay elements on top of the photo:
 
-REPLACE the property name pin (coral/red pin badge) with: "${nomeSpot}"
-REPLACE the distance badge (white rounded card, top-right) with: "${badgeDistancia}"
-REPLACE the city pin text with: "${pinCidade}"
-REPLACE the headline text (next to LANCAMENTO badge) with: "${headline}"
-REPLACE the data label (bottom-left) with: "${labelDado}"
-REPLACE the big number in the navy card (bottom-right) with: "${dadoPrincipal}"
-REPLACE the small text below the card with: "${complemento}"
+LAYOUT (top to bottom):
+1. Keep the photo as full background, visible in the top half
+2. Add a dark navy (#011337) gradient overlay on the bottom 50%, fading from transparent to solid
+3. TOP CENTER: White "seazone" logo text
+4. BELOW LOGO: A coral/red (#F1605D) location pin badge with bold white text "${nomeSpot}"
+5. TOP-RIGHT: A small white rounded card with text "${badgeDistancia}" and a red map pin icon
+6. LEFT MIDDLE: Small coral pin icon + "${pinCidade}" in white
+7. LEFT (below pin): Coral/red rectangle badge with bold white text "LANCAMENTO"
+8. RIGHT OF BADGE: White text "${headline}" — make key words bold
+9. BOTTOM-LEFT: White text "${labelDado}"
+10. BOTTOM-RIGHT: Dark navy rounded card with "${dadoPrincipal}" in VERY LARGE bold white text (biggest text on poster)
+11. BELOW CARD: Small white text "${complemento}"
+12. VERY BOTTOM: Tiny gray disclaimer text
 
-KEEP UNCHANGED: the Seazone logo, the "LANCAMENTO" badge, the background photo, all colors (#011337 navy, #F1605D coral, white), all element positions and sizes, the gradient overlay, the disclaimer text at the bottom.
-
-The poster format is 4:5 (1080x1350px). Do NOT move, resize, or remove any design element. Only the text content changes.`;
+STYLE: Clean, modern, premium real estate. Colors: navy #011337, coral #F1605D, white. Professional typography. The photo must show through clearly in the top portion.
+IMPORTANT: All text must be in Portuguese exactly as written above. Do NOT translate or modify any text.`;
 
       let staticResult = null;
       try {
         const res = await fetch('/api/generate-static', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ prompt, referenceImageUrl: DRIVE.refEstatico }),
+          body: JSON.stringify({ prompt, imageUrl: DRIVE.localizacao }),
         });
         const rawText = await res.text();
         try { staticResult = JSON.parse(rawText); } catch {
