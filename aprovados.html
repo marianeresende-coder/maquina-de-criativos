@@ -1,0 +1,181 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Entregaveis Aprovados — Seazone</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            sea: { dark: '#011337', coral: '#F1605D', green: '#047755', light: '#EBEBF5' },
+          },
+          fontFamily: {
+            display: ['"Space Grotesk"', 'sans-serif'],
+            body: ['"DM Sans"', 'sans-serif'],
+          }
+        }
+      }
+    }
+  </script>
+  <style>
+    body { font-family: 'DM Sans', sans-serif; }
+    h1,h2,h3,h4 { font-family: 'Space Grotesk', sans-serif; }
+    @keyframes fadeIn { from { opacity:0; transform:translateY(8px); } to { opacity:1; transform:translateY(0); } }
+    .fade-in { animation: fadeIn 0.4s ease-out forwards; }
+  </style>
+</head>
+<body class="bg-gray-50 min-h-screen">
+  <!-- Header -->
+  <header class="bg-sea-dark text-white">
+    <div class="max-w-5xl mx-auto px-4 py-4 flex items-center gap-3">
+      <div class="w-8 h-8 bg-sea-coral rounded-lg flex items-center justify-center">
+        <span class="font-bold text-sm">S</span>
+      </div>
+      <div>
+        <h1 class="font-display font-bold text-lg leading-tight">Entregaveis Aprovados</h1>
+        <p class="text-[10px] text-white/50">Seazone — Maquina de Criativos</p>
+      </div>
+    </div>
+  </header>
+
+  <div class="max-w-5xl mx-auto px-4 py-8" id="app">
+    <div class="text-center py-12" id="loading">
+      <div class="w-12 h-12 border-4 border-sea-coral border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+      <p class="text-gray-500">Carregando entregaveis...</p>
+    </div>
+  </div>
+
+  <script>
+    const PIECE_ICONS = { estatico: '🖼️', narrado: '🎥', apresentadora: '🎬' };
+    const PIECE_LABELS = { estatico: 'Peca Estatica', narrado: 'Video Narrado 15s', apresentadora: 'Video Apresentadora 30s' };
+
+    async function loadApproved() {
+      const app = document.getElementById('app');
+      try {
+        const res = await fetch('/api/list-approved');
+        const data = await res.json();
+
+        if (!data.files || data.files.length === 0) {
+          app.innerHTML = `
+            <div class="text-center py-16">
+              <div class="text-5xl mb-4">📭</div>
+              <h2 class="font-display font-bold text-xl mb-2">Nenhum entregavel aprovado ainda</h2>
+              <p class="text-gray-500 text-sm mb-6">Gere criativos na Maquina de Criativos e aprove para ver aqui.</p>
+              <a href="/" class="bg-sea-coral hover:bg-sea-coral/90 text-white font-bold px-6 py-3 rounded-lg text-sm inline-block">Ir para Maquina de Criativos</a>
+            </div>`;
+          return;
+        }
+
+        // Agrupar por projeto
+        const projects = {};
+        data.files.forEach(file => {
+          const parts = file.pathname.split('/');
+          // aprovados/projeto-nome/tipo/arquivo
+          const projectName = parts[1] || 'sem-projeto';
+          const tipo = parts[2] || 'outro';
+          if (!projects[projectName]) projects[projectName] = {};
+          if (!projects[projectName][tipo]) projects[projectName][tipo] = [];
+          projects[projectName][tipo].push(file);
+        });
+
+        let html = '';
+
+        for (const [project, tipos] of Object.entries(projects)) {
+          const displayName = project.replace(/-/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+
+          html += `
+            <div class="mb-10 fade-in">
+              <div class="flex items-center gap-3 mb-6">
+                <div class="w-10 h-10 bg-sea-dark rounded-xl flex items-center justify-center text-lg text-white font-bold">🏢</div>
+                <div>
+                  <h2 class="font-display font-bold text-xl">${displayName}</h2>
+                  <p class="text-xs text-gray-500">${Object.values(tipos).flat().length} entregavel(is)</p>
+                </div>
+              </div>`;
+
+          for (const [tipo, files] of Object.entries(tipos)) {
+            const icon = PIECE_ICONS[tipo] || '📄';
+            const label = PIECE_LABELS[tipo] || tipo.charAt(0).toUpperCase() + tipo.slice(1);
+
+            html += `
+              <div class="mb-6">
+                <div class="flex items-center gap-2 mb-3">
+                  <span class="text-lg">${icon}</span>
+                  <h3 class="font-display font-bold text-sm text-gray-700">${label}</h3>
+                  <span class="text-xs bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded-full">Aprovado</span>
+                </div>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">`;
+
+            files.forEach(file => {
+              const isVideo = file.pathname.endsWith('.mp4') || file.pathname.endsWith('.webm');
+              const fileName = file.pathname.split('/').pop();
+              const size = file.size ? (file.size / 1024 / 1024).toFixed(1) + ' MB' : '';
+              const date = file.uploadedAt ? new Date(file.uploadedAt).toLocaleDateString('pt-BR') : '';
+
+              if (isVideo) {
+                html += `
+                  <div class="bg-white rounded-xl border border-gray-200 overflow-hidden">
+                    <video src="${file.url}" controls class="w-full"></video>
+                    <div class="p-3 flex items-center justify-between">
+                      <div>
+                        <p class="text-xs font-medium text-gray-700">${fileName}</p>
+                        <p class="text-[10px] text-gray-400">${size} ${date ? '• ' + date : ''}</p>
+                      </div>
+                      <a href="${file.downloadUrl || file.url}" target="_blank" download
+                        class="bg-sea-dark hover:bg-sea-dark/80 text-white font-bold px-3 py-1.5 rounded-lg text-[10px]">
+                        Baixar
+                      </a>
+                    </div>
+                  </div>`;
+              } else {
+                html += `
+                  <div class="bg-white rounded-xl border border-gray-200 overflow-hidden">
+                    <img src="${file.url}" alt="${fileName}" class="w-full" />
+                    <div class="p-3 flex items-center justify-between">
+                      <div>
+                        <p class="text-xs font-medium text-gray-700">${fileName}</p>
+                        <p class="text-[10px] text-gray-400">${size} ${date ? '• ' + date : ''}</p>
+                      </div>
+                      <a href="${file.downloadUrl || file.url}" target="_blank" download
+                        class="bg-sea-dark hover:bg-sea-dark/80 text-white font-bold px-3 py-1.5 rounded-lg text-[10px]">
+                        Baixar
+                      </a>
+                    </div>
+                  </div>`;
+              }
+            });
+
+            html += `
+                </div>
+              </div>`;
+          }
+
+          html += `</div>`;
+        }
+
+        // Footer
+        html += `
+          <div class="text-center py-8 border-t border-gray-200 mt-8">
+            <p class="text-xs text-gray-400 mb-3">Gerado pela Maquina de Criativos — Seazone</p>
+            <a href="/" class="text-sea-coral hover:underline text-sm font-medium">← Voltar para Maquina de Criativos</a>
+          </div>`;
+
+        app.innerHTML = html;
+      } catch (err) {
+        app.innerHTML = `
+          <div class="text-center py-16">
+            <div class="text-5xl mb-4">❌</div>
+            <h2 class="font-display font-bold text-xl mb-2">Erro ao carregar</h2>
+            <p class="text-gray-500 text-sm">${err.message}</p>
+          </div>`;
+      }
+    }
+
+    loadApproved();
+  </script>
+</body>
+</html>
