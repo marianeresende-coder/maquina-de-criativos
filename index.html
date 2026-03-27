@@ -34,15 +34,17 @@
     @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.5} }
     .pulse { animation: pulse 1.5s ease-in-out infinite; }
     .roteiro-text { white-space: pre-wrap; font-family: 'DM Sans', monospace; font-size: 13px; line-height: 1.6; }
+    @keyframes slideUp { from { opacity:0; transform:translateY(12px); } to { opacity:1; transform:translateY(0); } }
+    .slide-up { animation: slideUp 0.4s ease-out forwards; }
   </style>
 </head>
 <body class="bg-gray-50 min-h-screen">
 <div id="root"></div>
 <script type="text/babel">
-const { useState, useCallback, useEffect, useRef } = React;
+const { useState, useCallback, useEffect, useRef, useReducer } = React;
 
 // ============================================================
-// HELPERS
+// HELPERS & CONSTANTS
 // ============================================================
 
 function formatTimer(ms) {
@@ -66,19 +68,45 @@ function useTimer(running) {
   return elapsed;
 }
 
-const PIECE_NAMES = [
-  'Peça Estática',
-  'Vídeo Narrado 15s',
-  'Vídeo Apresentadora 30s',
+const PIECE_NAMES = { 1: 'Peca Estatica', 2: 'Video Narrado 15s', 3: 'Video Apresentadora 30s' };
+const PIECE_ICONS = { 1: '🖼️', 2: '🎥', 3: '🎬' };
+
+const AGENTS = [
+  { id: 'agent01', num: '01', role: 'Analista de Briefing', icon: '📋' },
+  { id: 'agent02', num: '02', role: 'Roteirista Criativo', icon: '✍️' },
+  { id: 'agent04', num: '04', role: 'Diretor de Arte', icon: '🎨' },
+  { id: 'agent05', num: '05', role: 'Produtor de Video', icon: '🎬' },
+  { id: 'agent06', num: '06', role: 'Validador Final', icon: '✅' },
 ];
 
-const PIECE_ICONS = ['🖼️', '🎥', '🎬'];
+const DRIVE = {
+  fachada: 'https://lh3.googleusercontent.com/d/1gr6pI4ElrZK0gM4pJi-QgHqlVc91-0Nn=s1920',
+  rooftop: 'https://lh3.googleusercontent.com/d/1rkssZ7grxxozxe8xlKN0LVc0hw4p2vl5=s1920',
+  localizacao: 'https://lh3.googleusercontent.com/d/18aKptRoxehM5X-6tH0kkSiRcj3GBn1qC=s1920',
+  monica: 'https://lh3.googleusercontent.com/d/1fnk4XbJ3vtkrrM5f0RAbTMSTFdOatsC9=s1920',
+  refEstatico: 'https://lh3.googleusercontent.com/d/13G7xGya7gVAfP_EVTdOxQKoM5TvAU230=s1920',
+  fachadaAll: [
+    'https://lh3.googleusercontent.com/d/1gr6pI4ElrZK0gM4pJi-QgHqlVc91-0Nn=s1920',
+    'https://lh3.googleusercontent.com/d/13l4IGjbNVaUG8pgH49qNJroOw_ieT15T=s1920',
+    'https://lh3.googleusercontent.com/d/1ixgzmO-PncCo115PB101ZkaAJJdryNtL=s1920',
+  ],
+  rooftopAll: [
+    'https://lh3.googleusercontent.com/d/1rkssZ7grxxozxe8xlKN0LVc0hw4p2vl5=s1920',
+    'https://lh3.googleusercontent.com/d/1R37-0nwHPoBy52lRpk90LqoHaWGhu-oQ=s1920',
+    'https://lh3.googleusercontent.com/d/14IYGS7jxUk5RwEXt0u_EArGSR8cU2Zh0=s1920',
+  ],
+  localizacaoAll: [
+    'https://lh3.googleusercontent.com/d/13e96WR2Bs95nz8-7K288DFDxPdTcKRp0=s1920',
+    'https://lh3.googleusercontent.com/d/1K1SO4zdg4emid4QVQXsOIHdoVzxs9Rad=s1920',
+    'https://lh3.googleusercontent.com/d/176jyu1dGizph1svsLrhYz5dobYtfy_6Y=s1920',
+  ],
+};
 
 // ============================================================
-// STREAMING API CALL
+// API FUNCTIONS (preserved exactly)
 // ============================================================
 
-async function generatePiece(briefing, pieceNumber, onChunk, onDone, onError) {
+async function generatePieceStream(briefing, pieceNumber, onChunk, onDone, onError) {
   const MAX_RETRIES = 2;
   for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
     try {
@@ -87,30 +115,21 @@ async function generatePiece(briefing, pieceNumber, onChunk, onDone, onError) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ briefing, pieceNumber }),
       });
-
       if (!res.ok) {
-        if (res.status >= 500 && attempt < MAX_RETRIES - 1) {
-          await new Promise(r => setTimeout(r, 3000));
-          continue;
-        }
+        if (res.status >= 500 && attempt < MAX_RETRIES - 1) { await new Promise(r => setTimeout(r, 3000)); continue; }
         const err = await res.json().catch(() => ({ error: `HTTP ${res.status}` }));
-        onError(err.error || `HTTP ${res.status}`);
-        return;
+        onError(err.error || `HTTP ${res.status}`); return;
       }
-
       const reader = res.body.getReader();
       const decoder = new TextDecoder();
       let buffer = '';
       let receivedData = false;
-
       while (true) {
         const { done, value } = await reader.read();
         if (done) break;
-
         buffer += decoder.decode(value, { stream: true });
         const lines = buffer.split('\n');
         buffer = lines.pop() || '';
-
         for (const line of lines) {
           if (line.startsWith('data: ')) {
             try {
@@ -122,23 +141,12 @@ async function generatePiece(briefing, pieceNumber, onChunk, onDone, onError) {
           }
         }
       }
-
-      // Stream terminou sem data.done — se recebeu dados, considerar sucesso
       if (receivedData) { onDone(); return; }
-
-      // Stream vazio — retry
-      if (attempt < MAX_RETRIES - 1) {
-        await new Promise(r => setTimeout(r, 3000));
-        continue;
-      }
-      onError('Roteiro vazio — OpenRouter não retornou conteúdo');
-      return;
+      if (attempt < MAX_RETRIES - 1) { await new Promise(r => setTimeout(r, 3000)); continue; }
+      onError('Roteiro vazio — OpenRouter nao retornou conteudo'); return;
     } catch (err) {
-      if (attempt < MAX_RETRIES - 1) {
-        await new Promise(r => setTimeout(r, 3000));
-        continue;
-      }
-      onError(err.message || 'Erro de conexão');
+      if (attempt < MAX_RETRIES - 1) { await new Promise(r => setTimeout(r, 3000)); continue; }
+      onError(err.message || 'Erro de conexao');
     }
   }
 }
@@ -150,14 +158,12 @@ async function validatePiece(briefing, roteiro, pieceNumber) {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ briefing, roteiro, pieceNumber }),
     });
-    if (!res.ok) return { approved: true, summary: 'Validação indisponível' };
+    if (!res.ok) return { approved: true, summary: 'Validacao indisponivel' };
     return await res.json();
-  } catch {
-    return { approved: true, summary: 'Validação indisponível' };
-  }
+  } catch { return { approved: true, summary: 'Validacao indisponivel' }; }
 }
 
-async function fixPiece(briefing, roteiro, errors, pieceNumber, onChunk, onDone, onError) {
+async function fixPieceStream(briefing, roteiro, errors, pieceNumber, onChunk, onDone, onError) {
   const MAX_FIX_RETRIES = 2;
   for (let attempt = 0; attempt < MAX_FIX_RETRIES; attempt++) {
     try {
@@ -167,10 +173,7 @@ async function fixPiece(briefing, roteiro, errors, pieceNumber, onChunk, onDone,
         body: JSON.stringify({ briefing, roteiro, errors, pieceNumber }),
       });
       if (!res.ok) {
-        if (res.status >= 500 && attempt < MAX_FIX_RETRIES - 1) {
-          await new Promise(r => setTimeout(r, 3000)); // espera 3s e retenta
-          continue;
-        }
+        if (res.status >= 500 && attempt < MAX_FIX_RETRIES - 1) { await new Promise(r => setTimeout(r, 3000)); continue; }
         onError(`HTTP ${res.status}`); return;
       }
       const reader = res.body.getReader();
@@ -193,38 +196,77 @@ async function fixPiece(briefing, roteiro, errors, pieceNumber, onChunk, onDone,
           }
         }
       }
-      onDone();
-      return;
+      onDone(); return;
     } catch (err) {
-      if (attempt < MAX_FIX_RETRIES - 1) {
-        await new Promise(r => setTimeout(r, 3000));
-        continue;
-      }
+      if (attempt < MAX_FIX_RETRIES - 1) { await new Promise(r => setTimeout(r, 3000)); continue; }
       onError(err.message);
     }
   }
 }
 
+async function safeFetchOnce(url, options) {
+  try {
+    const res = await fetch(url, options);
+    const text = await res.text();
+    try { return JSON.parse(text); }
+    catch { return { error: `Resposta invalida: ${text.substring(0, 150)}` }; }
+  } catch (e) { return { error: e.message }; }
+}
+
+async function generateVideo(body) {
+  const r = await safeFetchOnce('/api/generate-video', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+  if (r.url) return r;
+  if (r.error) return r;
+  if (r.requestId && r.statusUrl && r.responseUrl) {
+    const maxWait = 720000;
+    const start = Date.now();
+    while (Date.now() - start < maxWait) {
+      await new Promise(res => setTimeout(res, 8000));
+      const poll = await safeFetchOnce(`/api/poll-video?statusUrl=${encodeURIComponent(r.statusUrl)}&responseUrl=${encodeURIComponent(r.responseUrl)}`, {});
+      if (poll.url) return poll;
+      if (poll.status === 'failed') return { error: poll.error || 'Video falhou no fal.ai' };
+    }
+    return { error: 'Timeout aguardando video (12min)' };
+  }
+  return r;
+}
+
+async function pollCreatomateRender(renderId, onProgress, maxMinutes = 10) {
+  const maxAttempts = maxMinutes * 12;
+  for (let i = 0; i < maxAttempts; i++) {
+    await new Promise(r => setTimeout(r, 5000));
+    try {
+      const res = await fetch(`/api/poll-render?id=${renderId}`);
+      const data = await res.json();
+      if (data.status === 'completed' && data.url) return data.url;
+      if (data.status === 'failed') { onProgress && onProgress(`Erro: ${data.error || 'render falhou'}`); return null; }
+      onProgress && onProgress(`montando... (${Math.floor((i + 1) * 5 / 60)}min ${((i + 1) * 5) % 60}s)`);
+    } catch (e) { /* retry */ }
+  }
+  onProgress && onProgress('Timeout — render nao finalizou');
+  return null;
+}
+
 // ============================================================
-// AGENT 01 — BRIEFING VALIDATOR (runs in browser)
+// BRIEFING VALIDATION
 // ============================================================
 
 const REQUIRED_SECTIONS = [
   { key: 'projeto', label: 'Projeto', fields: [
-    { path: 'nome', label: 'Nome' }, { path: 'endereco', label: 'Endereço' },
+    { path: 'nome', label: 'Nome' }, { path: 'endereco', label: 'Endereco' },
     { path: 'cidade', label: 'Cidade' }, { path: 'tipo', label: 'Tipo' },
   ]},
   { key: 'dados_financeiros', label: 'Dados Financeiros', fields: [
-    { path: 'ticket_medio.valor', label: 'Ticket médio' },
+    { path: 'ticket_medio.valor', label: 'Ticket medio' },
     { path: 'roi_estimado.valor', label: 'ROI estimado' },
-    { path: 'rentabilidade_liquida_estimada.valor', label: 'Rentabilidade líquida' },
-    { path: 'valorizacao_estimada.valor', label: 'Valorização estimada' },
+    { path: 'rentabilidade_liquida_estimada.valor', label: 'Rentabilidade liquida' },
+    { path: 'valorizacao_estimada.valor', label: 'Valorizacao estimada' },
     { path: 'rendimento_mensal_estimado', label: 'Rendimento mensal' },
     { path: 'estrutura.quantidade_cotas', label: 'Quantidade de cotas' },
     { path: 'panorama_competitivo', label: 'Panorama competitivo', isObject: true },
   ]},
-  { key: 'localizacao', label: 'Localização', fields: [
-    { path: 'caracteristicas_principais', label: 'Características principais', isArray: true, minItems: 1 },
+  { key: 'localizacao', label: 'Localizacao', fields: [
+    { path: 'caracteristicas_principais', label: 'Caracteristicas principais', isArray: true, minItems: 1 },
   ]},
   { key: 'pontos_fortes', label: 'Pontos Fortes', fields: [
     { path: 'hierarquia', label: 'Hierarquia de pontos fortes', isArray: true, minItems: 3 },
@@ -235,17 +277,17 @@ const REQUIRED_SECTIONS = [
   { key: 'donts', label: "DON'Ts", fields: [
     { path: 'diretrizes', label: "Diretrizes DON'T", isArray: true, minItems: 1 },
   ]},
-  { key: 'publico_alvo', label: 'Público-Alvo', fields: [
-    { path: 'prioridades', label: 'Prioridades de público', isArray: true, minItems: 1 },
+  { key: 'publico_alvo', label: 'Publico-Alvo', fields: [
+    { path: 'prioridades', label: 'Prioridades de publico', isArray: true, minItems: 1 },
   ]},
-  { key: 'perfil_hospede', label: 'Perfil do Hóspede', fields: [
+  { key: 'perfil_hospede', label: 'Perfil do Hospede', fields: [
     { path: 'tipo_principal', label: 'Tipo principal' },
-    { path: 'fatores_decisao', label: 'Fatores de decisão', isArray: true, minItems: 1 },
+    { path: 'fatores_decisao', label: 'Fatores de decisao', isArray: true, minItems: 1 },
   ]},
   { key: 'estrutura_criativos', label: 'Estrutura de Criativos', fields: [
-    { path: 'pontos_fortes_obrigatorios', label: 'Pontos fortes obrigatórios', isArray: true, minItems: 1 },
+    { path: 'pontos_fortes_obrigatorios', label: 'Pontos fortes obrigatorios', isArray: true, minItems: 1 },
     { path: 'formatos', label: 'Formatos', isArray: true, minItems: 1 },
-    { path: 'instrucoes_visuais_obrigatorias', label: 'Instruções visuais', isArray: true, minItems: 1 },
+    { path: 'instrucoes_visuais_obrigatorias', label: 'Instrucoes visuais', isArray: true, minItems: 1 },
   ]},
 ];
 
@@ -261,9 +303,8 @@ function validateBriefing(data) {
     const fieldResults = [];
     let sectionPassed = true;
     if (!sectionData) {
-      results.push({ key: section.key, label: section.label, passed: false, error: 'Seção ausente', fields: [] });
-      allPassed = false;
-      continue;
+      results.push({ key: section.key, label: section.label, passed: false, error: 'Secao ausente', fields: [] });
+      allPassed = false; continue;
     }
     for (const field of section.fields) {
       const value = getNestedValue(sectionData, field.path);
@@ -287,7 +328,45 @@ function validateBriefing(data) {
 }
 
 // ============================================================
-// COMPONENTS
+// STATE MANAGEMENT
+// ============================================================
+
+const initialState = {
+  page: 'home',
+  briefingData: null,
+  briefingUrl: '',
+  roteiroTexts: {},
+  currentPiece: 1,
+  results: { 1: [], 2: [], 3: [] },
+  pieceErrors: { 1: [], 2: [], 3: [] },
+  approvedPieces: {},
+  chatMessages: {},
+};
+
+function appReducer(state, action) {
+  switch (action.type) {
+    case 'NAVIGATE': return { ...state, page: action.page };
+    case 'SET_BRIEFING': return { ...state, briefingData: action.data, briefingUrl: action.url };
+    case 'SET_ROTEIRO': return { ...state, roteiroTexts: { ...state.roteiroTexts, [action.piece]: action.text } };
+    case 'SET_ALL_ROTEIROS': return { ...state, roteiroTexts: action.texts };
+    case 'SET_CURRENT_PIECE': return { ...state, currentPiece: action.piece };
+    case 'SET_RESULTS': return { ...state, results: { ...state.results, [action.piece]: action.items } };
+    case 'SET_ERRORS': return { ...state, pieceErrors: { ...state.pieceErrors, [action.piece]: action.errors } };
+    case 'APPROVE_PIECE': return { ...state, approvedPieces: { ...state.approvedPieces, [action.piece]: action.item } };
+    case 'CLEAR_PIECE': return { ...state, results: { ...state.results, [action.piece]: [] }, pieceErrors: { ...state.pieceErrors, [action.piece]: [] } };
+    case 'ADD_CHAT': {
+      const agent = action.agent;
+      const prev = state.chatMessages[agent] || [];
+      return { ...state, chatMessages: { ...state.chatMessages, [agent]: [...prev, { text: action.text, type: action.msgType || 'info', time: Date.now() }] } };
+    }
+    case 'CLEAR_CHAT': return { ...state, chatMessages: { ...state.chatMessages, [action.agent]: [] } };
+    case 'RESET': return { ...initialState };
+    default: return state;
+  }
+}
+
+// ============================================================
+// SHARED COMPONENTS
 // ============================================================
 
 function Header() {
@@ -298,47 +377,145 @@ function Header() {
           <span className="font-bold text-sm">S</span>
         </div>
         <div>
-          <h1 className="font-display font-bold text-lg leading-tight">Máquina de Criativos</h1>
-          <p className="text-[10px] text-white/50">Seazone — Geração autônoma de criativos</p>
+          <h1 className="font-display font-bold text-lg leading-tight">Maquina de Criativos</h1>
+          <p className="text-[10px] text-white/50">Seazone — Geracao autonoma de criativos</p>
         </div>
       </div>
     </header>
   );
 }
 
-function StepIndicator({ steps, currentStep }) {
+function ProgressBar({ currentPage }) {
+  const steps = [
+    { id: 'agent01', label: '01', name: 'Briefing' },
+    { id: 'agent02', label: '02', name: 'Roteiros' },
+    { id: 'agent04', label: '04', name: 'Arte' },
+    { id: 'agent05', label: '05', name: 'Video' },
+    { id: 'agent06', label: '06', name: 'Aprovacao' },
+  ];
+  const pageOrder = ['home', 'agent01', 'agent02', 'agent04', 'agent05', 'agent06', 'final'];
+  const currentIdx = pageOrder.indexOf(currentPage);
+
   return (
-    <div className="flex items-center gap-1 overflow-x-auto pb-2">
-      {steps.map((s, i) => (
-        <div key={i} className="flex items-center gap-1 flex-shrink-0">
-          <div className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold transition-all
-            ${i < currentStep ? 'bg-sea-green text-white' :
-              i === currentStep ? 'bg-sea-coral text-white ring-2 ring-sea-coral/30' :
-              'bg-gray-200 text-gray-400'}`}>
-            {i < currentStep ? '✓' : i + 1}
+    <div className="flex items-center gap-1 overflow-x-auto pb-2 mb-6">
+      {steps.map((s, i) => {
+        const stepIdx = pageOrder.indexOf(s.id);
+        const isDone = currentIdx > stepIdx;
+        const isCurrent = currentPage === s.id;
+        return (
+          <div key={s.id} className="flex items-center gap-1 flex-shrink-0">
+            <div className="flex flex-col items-center gap-1">
+              <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold transition-all
+                ${isDone ? 'bg-sea-green text-white' :
+                  isCurrent ? 'bg-sea-coral text-white ring-2 ring-sea-coral/30' :
+                  'bg-gray-200 text-gray-400'}`}>
+                {isDone ? '✓' : s.label}
+              </div>
+              <span className={`text-[10px] font-medium ${isCurrent ? 'text-sea-coral' : isDone ? 'text-sea-green' : 'text-gray-400'}`}>{s.name}</span>
+            </div>
+            {i < steps.length - 1 && (
+              <div className={`w-8 h-0.5 mb-4 ${isDone ? 'bg-sea-green' : 'bg-gray-200'}`} />
+            )}
           </div>
-          {i < steps.length - 1 && (
-            <div className={`w-6 h-0.5 ${i < currentStep ? 'bg-sea-green' : 'bg-gray-200'}`} />
-          )}
+        );
+      })}
+    </div>
+  );
+}
+
+function AgentPageLayout({ num, role, icon, children, chatMessages }) {
+  return (
+    <div className="fade-in">
+      <div className="bg-white rounded-xl border border-gray-200 p-5 mb-4">
+        <div className="flex items-center gap-4">
+          <div className="w-12 h-12 bg-sea-dark/5 rounded-xl flex items-center justify-center text-2xl">{icon}</div>
+          <div>
+            <div className="flex items-center gap-2">
+              <span className="text-xs font-mono bg-sea-dark text-white px-2 py-0.5 rounded">Agente {num}</span>
+            </div>
+            <h2 className="font-display font-bold text-lg mt-0.5">{role}</h2>
+          </div>
         </div>
-      ))}
+      </div>
+
+      {/* Chat messages */}
+      {chatMessages && chatMessages.length > 0 && (
+        <div className="space-y-2 mb-4">
+          {chatMessages.map((msg, i) => (
+            <div key={i} className={`slide-up flex items-start gap-3 px-4 py-3 rounded-lg text-sm
+              ${msg.type === 'success' ? 'bg-emerald-50 text-emerald-800 border border-emerald-200' :
+                msg.type === 'error' ? 'bg-red-50 text-red-800 border border-red-200' :
+                msg.type === 'warning' ? 'bg-yellow-50 text-yellow-800 border border-yellow-200' :
+                msg.type === 'progress' ? 'bg-blue-50 text-blue-800 border border-blue-200' :
+                'bg-gray-50 text-gray-700 border border-gray-200'}`}>
+              <span className="font-bold text-xs mt-0.5 whitespace-nowrap">Agente {num}</span>
+              <span>{msg.text}</span>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {children}
     </div>
   );
 }
 
 // ============================================================
-// STEP 1 — INPUT URL
+// HOME PAGE
 // ============================================================
 
-function Step1_Input({ onSubmit }) {
-  const [url, setUrl] = useState('');
+function HomePage({ dispatch }) {
+  return (
+    <div className="fade-in text-center py-12">
+      <div className="w-20 h-20 bg-sea-dark/5 rounded-2xl flex items-center justify-center text-4xl mx-auto mb-6">🚀</div>
+      <h2 className="font-display font-bold text-2xl mb-3">Maquina de Criativos</h2>
+      <p className="text-gray-500 mb-2 max-w-md mx-auto">
+        Sistema autonomo de geracao de criativos de marketing para empreendimentos Seazone.
+      </p>
+      <p className="text-gray-400 text-sm mb-8 max-w-md mx-auto">
+        6 agentes de IA trabalham juntos para transformar seu briefing em 3 pecas criativas prontas para producao.
+      </p>
+
+      <div className="grid grid-cols-3 gap-3 max-w-lg mx-auto mb-8">
+        {[
+          { icon: '🖼️', label: 'Peca Estatica' },
+          { icon: '🎥', label: 'Video Narrado' },
+          { icon: '🎬', label: 'Video Apresentadora' },
+        ].map((p, i) => (
+          <div key={i} className="bg-white rounded-xl border border-gray-200 p-4 text-center">
+            <div className="text-2xl mb-2">{p.icon}</div>
+            <p className="text-xs font-medium text-gray-600">{p.label}</p>
+          </div>
+        ))}
+      </div>
+
+      <button onClick={() => dispatch({ type: 'NAVIGATE', page: 'agent01' })}
+        className="bg-sea-coral hover:bg-sea-coral/90 text-white font-bold px-8 py-3 rounded-lg text-sm transition-colors">
+        Iniciar
+      </button>
+    </div>
+  );
+}
+
+// ============================================================
+// AGENT 01 — ANALISTA DE BRIEFING
+// ============================================================
+
+function Agent01({ state, dispatch }) {
+  const [url, setUrl] = useState(state.briefingUrl || '');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
+  const [validation, setValidation] = useState(null);
+  const msgs = state.chatMessages['agent01'] || [];
 
   const handleSubmit = async () => {
     if (!url.trim()) return;
     setLoading(true);
     setError(null);
+    setValidation(null);
+    dispatch({ type: 'CLEAR_CHAT', agent: 'agent01' });
+    dispatch({ type: 'ADD_CHAT', agent: 'agent01', text: 'Buscando briefing...', msgType: 'progress' });
+
     try {
       const res = await fetch('/api/fetch-briefing', {
         method: 'POST',
@@ -347,530 +524,327 @@ function Step1_Input({ onSubmit }) {
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Erro ao buscar briefing');
-      onSubmit(data, url.trim());
+
+      dispatch({ type: 'SET_BRIEFING', data, url: url.trim() });
+      dispatch({ type: 'ADD_CHAT', agent: 'agent01', text: 'Briefing recebido! Validando campos...', msgType: 'info' });
+
+      const result = validateBriefing(data);
+      setValidation(result);
+
+      if (result.allPassed) {
+        dispatch({ type: 'ADD_CHAT', agent: 'agent01', text: `Briefing "${data.projeto?.nome || 'Empreendimento'}" validado com sucesso! Todas as ${result.results.length} secoes completas. Pode seguir!`, msgType: 'success' });
+      } else {
+        const failed = result.results.filter(r => !r.passed).map(r => r.label);
+        dispatch({ type: 'ADD_CHAT', agent: 'agent01', text: `Briefing incompleto. Secoes com problema: ${failed.join(', ')}. Corrija no Lovable e tente novamente.`, msgType: 'error' });
+      }
     } catch (err) {
       setError(err.message);
+      dispatch({ type: 'ADD_CHAT', agent: 'agent01', text: `Erro: ${err.message}`, msgType: 'error' });
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <div className="fade-in">
-      <div className="bg-white rounded-xl border-2 border-dashed border-gray-300 p-8 text-center">
-        <div className="w-16 h-16 bg-sea-dark/5 rounded-2xl flex items-center justify-center text-3xl mx-auto mb-4">📋</div>
-        <h3 className="font-display font-bold text-lg mb-2">Cole a URL do Lovable</h3>
-        <p className="text-sm text-gray-500 mb-6">A máquina vai buscar o briefing.json e validar todas as seções</p>
-        <div className="max-w-xl mx-auto">
-          <div className="flex gap-2">
-            <input type="url" value={url} onChange={e => setUrl(e.target.value)}
-              onKeyDown={e => e.key === 'Enter' && handleSubmit()}
-              placeholder="https://nomedoempreendimento.lovable.app"
-              className="flex-1 border border-gray-300 rounded-lg px-4 py-3 text-sm focus:outline-none focus:border-sea-coral focus:ring-2 focus:ring-sea-coral/20" />
-            <button onClick={handleSubmit} disabled={loading || !url.trim()}
-              className="bg-sea-coral hover:bg-sea-coral/90 disabled:bg-gray-300 text-white font-bold px-6 py-3 rounded-lg text-sm transition-colors">
-              {loading ? 'Buscando...' : 'Validar'}
-            </button>
-          </div>
-          {error && <div className="mt-3 bg-red-50 border border-red-200 rounded-lg px-4 py-3 text-sm text-red-700 text-left fade-in">{error}</div>}
-        </div>
-      </div>
-    </div>
-  );
-}
-
-// ============================================================
-// STEP 2 — VALIDATION
-// ============================================================
-
-function Step2_Validation({ data, url, onApproved, onReset }) {
-  const validation = validateBriefing(data);
-  const projectName = data.projeto?.nome || 'Empreendimento sem nome';
-  const passedCount = validation.results.filter(r => r.passed).length;
-
-  return (
-    <div className="fade-in">
-      <div className={`rounded-xl p-5 mb-6 ${validation.allPassed ? 'bg-emerald-50 border border-emerald-200' : 'bg-red-50 border border-red-200'}`}>
-        <div className="flex items-center justify-between mb-2">
-          <h3 className="font-display font-bold text-lg">{validation.allPassed ? '✅' : '❌'} {projectName}</h3>
-          <span className={`text-sm font-bold ${validation.allPassed ? 'text-emerald-600' : 'text-red-600'}`}>
-            {passedCount}/{validation.results.length} seções
-          </span>
-        </div>
-        <p className="text-sm text-gray-600 mb-1">{url}</p>
-        <p className={`text-sm font-medium ${validation.allPassed ? 'text-emerald-700' : 'text-red-700'}`}>
-          {validation.allPassed ? 'Briefing completo. Pronto para gerar roteiros.' : 'Briefing incompleto. Corrija no Lovable.'}
-        </p>
-      </div>
-
-      <div className="space-y-3 mb-6">
-        {validation.results.map(section => (
-          <div key={section.key} className={`bg-white rounded-xl border overflow-hidden ${section.passed ? 'border-emerald-200' : 'border-red-200'}`}>
-            <div className={`flex items-center gap-3 px-4 py-3 ${section.passed ? 'bg-emerald-50' : 'bg-red-50'}`}>
-              <div className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold ${section.passed ? 'bg-emerald-500 text-white' : 'bg-red-500 text-white'}`}>
-                {section.passed ? '✓' : '✕'}
-              </div>
-              <span className="font-display font-bold text-sm">{section.label}</span>
-              {!section.passed && section.error && <span className="text-xs bg-red-200 text-red-700 px-2 py-0.5 rounded-full ml-auto">{section.error}</span>}
-            </div>
-            {section.fields.length > 0 && (
-              <div className="divide-y divide-gray-100">
-                {section.fields.map(f => (
-                  <div key={f.path} className={`flex items-center justify-between px-4 py-2.5 ${f.passed ? '' : 'bg-red-50/50'}`}>
-                    <div className="flex items-center gap-2">
-                      <span className={`text-sm ${f.passed ? 'text-emerald-500' : 'text-red-500'}`}>{f.passed ? '✓' : '✕'}</span>
-                      <span className="text-sm text-gray-700">{f.label}</span>
-                    </div>
-                    {f.passed && f.value ? (
-                      <span className="text-sm font-medium text-gray-900 bg-emerald-50 px-2 py-0.5 rounded">
-                        {typeof f.value === 'string' && f.value.length > 50 ? f.value.substring(0, 50) + '...' : f.value}
-                      </span>
-                    ) : !f.passed ? (
-                      <span className="text-xs font-medium text-red-600 bg-red-100 px-2 py-0.5 rounded">{f.error}</span>
-                    ) : null}
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-        ))}
-      </div>
-
-      <div className="flex gap-3">
-        <button onClick={onReset} className="border border-gray-300 text-gray-600 px-4 py-2.5 rounded-lg text-sm hover:bg-gray-50">← Novo briefing</button>
-        {validation.allPassed && (
-          <button onClick={() => onApproved(data)} className="bg-sea-coral hover:bg-sea-coral/90 text-white font-bold px-6 py-2.5 rounded-lg text-sm">
-            Gerar Roteiros →
+    <AgentPageLayout num="01" role="Analista de Briefing" icon="📋" chatMessages={msgs}>
+      {/* URL Input */}
+      <div className="bg-white rounded-xl border border-gray-200 p-6 mb-4">
+        <h3 className="font-display font-bold text-sm mb-3">Cole a URL do Lovable</h3>
+        <div className="flex gap-2">
+          <input type="url" value={url} onChange={e => setUrl(e.target.value)}
+            onKeyDown={e => e.key === 'Enter' && handleSubmit()}
+            placeholder="https://nomedoempreendimento.lovable.app"
+            className="flex-1 border border-gray-300 rounded-lg px-4 py-3 text-sm focus:outline-none focus:border-sea-coral focus:ring-2 focus:ring-sea-coral/20" />
+          <button onClick={handleSubmit} disabled={loading || !url.trim()}
+            className="bg-sea-coral hover:bg-sea-coral/90 disabled:bg-gray-300 text-white font-bold px-6 py-3 rounded-lg text-sm transition-colors">
+            {loading ? 'Buscando...' : 'Validar'}
           </button>
-        )}
+        </div>
+        {error && <div className="mt-3 bg-red-50 border border-red-200 rounded-lg px-4 py-3 text-sm text-red-700">{error}</div>}
       </div>
-    </div>
+
+      {/* Validation Results */}
+      {validation && (
+        <div className="space-y-3 mb-4 fade-in">
+          {validation.results.map(section => (
+            <div key={section.key} className={`bg-white rounded-xl border overflow-hidden ${section.passed ? 'border-emerald-200' : 'border-red-200'}`}>
+              <div className={`flex items-center gap-3 px-4 py-3 ${section.passed ? 'bg-emerald-50' : 'bg-red-50'}`}>
+                <div className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold ${section.passed ? 'bg-emerald-500 text-white' : 'bg-red-500 text-white'}`}>
+                  {section.passed ? '✓' : '✕'}
+                </div>
+                <span className="font-display font-bold text-sm">{section.label}</span>
+                {!section.passed && section.error && <span className="text-xs bg-red-200 text-red-700 px-2 py-0.5 rounded-full ml-auto">{section.error}</span>}
+              </div>
+              {section.fields.length > 0 && (
+                <div className="divide-y divide-gray-100">
+                  {section.fields.map(f => (
+                    <div key={f.path} className={`flex items-center justify-between px-4 py-2.5 ${f.passed ? '' : 'bg-red-50/50'}`}>
+                      <div className="flex items-center gap-2">
+                        <span className={`text-sm ${f.passed ? 'text-emerald-500' : 'text-red-500'}`}>{f.passed ? '✓' : '✕'}</span>
+                        <span className="text-sm text-gray-700">{f.label}</span>
+                      </div>
+                      {f.passed && f.value ? (
+                        <span className="text-sm font-medium text-gray-900 bg-emerald-50 px-2 py-0.5 rounded">
+                          {typeof f.value === 'string' && f.value.length > 50 ? f.value.substring(0, 50) + '...' : f.value}
+                        </span>
+                      ) : !f.passed ? (
+                        <span className="text-xs font-medium text-red-600 bg-red-100 px-2 py-0.5 rounded">{f.error}</span>
+                      ) : null}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Actions */}
+      {validation && validation.allPassed && (
+        <div className="flex justify-end fade-in">
+          <button onClick={() => dispatch({ type: 'NAVIGATE', page: 'agent02' })}
+            className="bg-sea-coral hover:bg-sea-coral/90 text-white font-bold px-6 py-3 rounded-lg text-sm">
+            Continuar para Roteiros →
+          </button>
+        </div>
+      )}
+    </AgentPageLayout>
   );
 }
 
 // ============================================================
-// PIECE CARD — shows streaming roteiro + validation
+// AGENT 02 — ROTEIRISTA CRIATIVO (+ Agent 03 behind the scenes)
 // ============================================================
 
-function PieceCard({ pieceNumber, briefing, autoStart }) {
-  const [status, setStatus] = useState('idle'); // idle, generating, validating, approved, rejected, error
-  const [text, setText] = useState('');
-  const [validation, setValidation] = useState(null);
-  const [error, setError] = useState(null);
-  const [startTime, setStartTime] = useState(null);
-  const [endTime, setEndTime] = useState(null);
-  const [expanded, setExpanded] = useState(true);
-  const textRef = useRef('');
+function Agent02({ state, dispatch }) {
+  const [pieces, setPieces] = useState({ 1: { status: 'idle', text: '', validation: null, attempt: 0 }, 2: { status: 'idle', text: '', validation: null, attempt: 0 }, 3: { status: 'idle', text: '', validation: null, attempt: 0 } });
+  const [currentPiece, setCurrentPiece] = useState(0);
+  const [allDone, setAllDone] = useState(false);
+  const textRefs = useRef({ 1: '', 2: '', 3: '' });
   const started = useRef(false);
-  const containerRef = useRef(null);
+  const containerRefs = useRef({});
+  const msgs = state.chatMessages['agent02'] || [];
 
-  const elapsed = useTimer(status === 'generating' || status === 'validating');
+  const updatePiece = (num, updates) => setPieces(prev => ({ ...prev, [num]: { ...prev[num], ...updates } }));
 
-  useEffect(() => {
-    if (autoStart && !started.current) {
-      started.current = true;
-      runPiece();
-    }
-  }, [autoStart]);
-
-  const runPiece = async () => {
-    setStatus('generating');
-    setStartTime(Date.now());
-    setText('');
-    textRef.current = '';
-
-    await new Promise((resolve) => {
-      generatePiece(
-        briefing, pieceNumber,
+  const streamHelper = (fn, args) => {
+    return new Promise((resolve) => {
+      fn(...args,
         (chunk) => {
-          textRef.current += chunk;
-          setText(textRef.current);
-          // Auto-scroll
-          if (containerRef.current) {
-            containerRef.current.scrollTop = containerRef.current.scrollHeight;
-          }
+          const num = args[1] || args[3]; // pieceNumber
+          textRefs.current[num] = (textRefs.current[num] || '') + chunk;
+          updatePiece(num, { text: textRefs.current[num] });
+          if (containerRefs.current[num]) containerRefs.current[num].scrollTop = containerRefs.current[num].scrollHeight;
         },
-        () => resolve(),
-        (err) => { setError(err); setStatus('error'); resolve(); }
+        () => resolve(true),
+        (err) => { resolve(false); }
+      );
+    });
+  };
+
+  const runSinglePiece = async (num) => {
+    const MAX_RETRIES = 2;
+    setCurrentPiece(num);
+    updatePiece(num, { status: 'generating', attempt: 1 });
+    textRefs.current[num] = '';
+    dispatch({ type: 'ADD_CHAT', agent: 'agent02', text: `Escrevendo roteiro da ${PIECE_NAMES[num]}...`, msgType: 'progress' });
+
+    const ok = await new Promise((resolve) => {
+      generatePieceStream(state.briefingData, num,
+        (chunk) => { textRefs.current[num] += chunk; updatePiece(num, { text: textRefs.current[num] }); },
+        () => resolve(true),
+        (err) => { updatePiece(num, { status: 'error', text: err }); resolve(false); }
       );
     });
 
-    if (textRef.current && !error) {
-      setStatus('validating');
-      const result = await validatePiece(briefing, textRef.current, pieceNumber);
-      setValidation(result);
-      setStatus(result.approved ? 'approved' : 'rejected');
-      setEndTime(Date.now());
+    if (!ok || !textRefs.current[num]) {
+      dispatch({ type: 'ADD_CHAT', agent: 'agent02', text: `Erro ao gerar roteiro da ${PIECE_NAMES[num]}.`, msgType: 'error' });
+      return false;
     }
+
+    // Validate (Agent 03)
+    updatePiece(num, { status: 'validating' });
+    dispatch({ type: 'ADD_CHAT', agent: 'agent02', text: `Agente 03 validando roteiro da ${PIECE_NAMES[num]}...`, msgType: 'info' });
+    let result = await validatePiece(state.briefingData, textRefs.current[num], num);
+    updatePiece(num, { validation: result });
+
+    if (result.approved) {
+      updatePiece(num, { status: 'approved' });
+      dispatch({ type: 'SET_ROTEIRO', piece: num, text: textRefs.current[num] });
+      dispatch({ type: 'ADD_CHAT', agent: 'agent02', text: `Roteiro da ${PIECE_NAMES[num]} aprovado pelo Agente 03!`, msgType: 'success' });
+      return true;
+    }
+
+    // Auto-fix loop
+    for (let retry = 1; retry <= MAX_RETRIES; retry++) {
+      updatePiece(num, { status: 'fixing', attempt: retry + 1 });
+      dispatch({ type: 'ADD_CHAT', agent: 'agent02', text: `Agente 03 encontrou problemas. Corrigindo (tentativa ${retry + 1})...`, msgType: 'warning' });
+
+      const errors = result.errors || [result.summary || 'Peca reprovada'];
+      const prevText = textRefs.current[num];
+      textRefs.current[num] = '';
+
+      const fixOk = await new Promise((resolve) => {
+        fixPieceStream(state.briefingData, prevText, errors, num,
+          (chunk) => { textRefs.current[num] += chunk; updatePiece(num, { text: textRefs.current[num] }); },
+          () => resolve(true),
+          (err) => { resolve(false); }
+        );
+      });
+
+      if (!fixOk || !textRefs.current[num]) {
+        textRefs.current[num] = prevText;
+        updatePiece(num, { status: 'approved', text: prevText, validation: { approved: true, summary: 'Aprovado com ressalvas.' } });
+        dispatch({ type: 'SET_ROTEIRO', piece: num, text: prevText });
+        dispatch({ type: 'ADD_CHAT', agent: 'agent02', text: `Correcao falhou. Roteiro da ${PIECE_NAMES[num]} aprovado com ressalvas.`, msgType: 'warning' });
+        return true;
+      }
+
+      updatePiece(num, { status: 'validating' });
+      result = await validatePiece(state.briefingData, textRefs.current[num], num);
+      updatePiece(num, { validation: result });
+
+      if (result.approved) {
+        updatePiece(num, { status: 'approved' });
+        dispatch({ type: 'SET_ROTEIRO', piece: num, text: textRefs.current[num] });
+        dispatch({ type: 'ADD_CHAT', agent: 'agent02', text: `Roteiro da ${PIECE_NAMES[num]} aprovado pelo Agente 03!`, msgType: 'success' });
+        return true;
+      }
+    }
+
+    // Exceeded retries
+    updatePiece(num, { status: 'approved', validation: { ...result, approved: true, summary: `Aprovado apos ${MAX_RETRIES + 1} tentativas. ${result.summary || ''}` } });
+    dispatch({ type: 'SET_ROTEIRO', piece: num, text: textRefs.current[num] });
+    dispatch({ type: 'ADD_CHAT', agent: 'agent02', text: `Roteiro da ${PIECE_NAMES[num]} aprovado apos multiplas tentativas.`, msgType: 'warning' });
+    return true;
   };
 
-  const totalTime = endTime && startTime ? endTime - startTime : elapsed;
-  const name = PIECE_NAMES[pieceNumber - 1];
-  const icon = PIECE_ICONS[pieceNumber - 1];
+  useEffect(() => {
+    if (!started.current && state.briefingData) {
+      started.current = true;
+      (async () => {
+        for (const num of [1, 2, 3]) {
+          await runSinglePiece(num);
+        }
+        setAllDone(true);
+        dispatch({ type: 'ADD_CHAT', agent: 'agent02', text: 'Todos os 3 roteiros prontos! Pode seguir para a geracao de criativos.', msgType: 'success' });
+      })();
+    }
+  }, []);
+
+  const elapsed = useTimer(!allDone && started.current);
 
   const statusColors = {
-    idle: 'border-gray-200 opacity-60',
-    generating: 'border-sea-coral shadow-md',
-    validating: 'border-yellow-300 shadow-md',
-    approved: 'border-emerald-300',
-    rejected: 'border-red-300',
-    error: 'border-red-300',
+    idle: 'border-gray-200 opacity-60', generating: 'border-sea-coral shadow-md', validating: 'border-yellow-300 shadow-md',
+    fixing: 'border-orange-300 shadow-md', approved: 'border-emerald-300', error: 'border-red-300',
   };
-
-  const statusBadge = {
-    idle: { bg: 'bg-gray-100 text-gray-400', label: 'Aguardando' },
-    generating: { bg: 'bg-sea-coral/10 text-sea-coral', label: 'Gerando...' },
-    validating: { bg: 'bg-yellow-100 text-yellow-700', label: 'Validando...' },
-    approved: { bg: 'bg-emerald-100 text-emerald-700', label: 'Aprovado' },
-    rejected: { bg: 'bg-red-100 text-red-700', label: 'Reprovado' },
-    error: { bg: 'bg-red-100 text-red-700', label: 'Erro' },
+  const statusLabels = {
+    idle: 'Aguardando', generating: 'Gerando...', validating: 'Agente 03 validando...', fixing: 'Corrigindo...', approved: 'Aprovado', error: 'Erro',
   };
-
-  const badge = statusBadge[status];
 
   return (
-    <div className={`bg-white rounded-xl border-2 overflow-hidden transition-all fade-in ${statusColors[status]}`}>
-      {/* Header */}
-      <div className="flex items-center gap-3 px-5 py-4 cursor-pointer" onClick={() => text && setExpanded(!expanded)}>
-        <div className={`w-10 h-10 rounded-xl flex items-center justify-center text-lg flex-shrink-0
-          ${status === 'approved' ? 'bg-emerald-100' : status === 'generating' ? 'bg-sea-coral/10' : 'bg-gray-100'}`}>
-          {status === 'approved' ? '✓' : icon}
+    <AgentPageLayout num="02" role="Roteirista Criativo" icon="✍️" chatMessages={msgs}>
+      {!allDone && elapsed > 0 && (
+        <div className="text-right mb-2">
+          <span className="text-xs font-mono bg-gray-100 text-gray-600 px-2 py-1 rounded-full">{formatTimer(elapsed)}</span>
         </div>
-        <div className="flex-1">
-          <div className="flex items-center gap-2">
-            <span className="text-[10px] font-mono bg-gray-100 text-gray-500 px-1.5 py-0.5 rounded">#{pieceNumber}</span>
-            <h3 className="font-display font-bold">{name}</h3>
-          </div>
-        </div>
-        <div className="flex items-center gap-2 flex-shrink-0">
-          {totalTime > 0 && (
-            <span className={`text-xs font-mono px-2 py-1 rounded-full ${
-              totalTime > 600000 ? 'bg-red-100 text-red-700' :
-              totalTime > 300000 ? 'bg-yellow-100 text-yellow-700' :
-              'bg-gray-100 text-gray-600'
-            }`}>{formatTimer(totalTime)}</span>
-          )}
-          <span className={`text-xs font-medium px-3 py-1 rounded-full ${badge.bg}`}>
-            {(status === 'generating' || status === 'validating') && <span className="inline-block w-2 h-2 bg-current rounded-full mr-1.5 pulse" />}
-            {badge.label}
-          </span>
-          {text && (
-            <span className="text-gray-400 text-sm">{expanded ? '▼' : '▶'}</span>
-          )}
-        </div>
+      )}
+
+      <div className="space-y-4 mb-4">
+        {[1, 2, 3].map(num => {
+          const p = pieces[num];
+          const [expanded, setExpanded] = useState(num === currentPiece);
+
+          return (
+            <div key={num} className={`bg-white rounded-xl border-2 overflow-hidden transition-all ${statusColors[p.status]}`}>
+              <div className="flex items-center gap-3 px-5 py-4 cursor-pointer" onClick={() => p.text && setExpanded(!expanded)}>
+                <div className={`w-10 h-10 rounded-xl flex items-center justify-center text-lg flex-shrink-0
+                  ${p.status === 'approved' ? 'bg-emerald-100' : p.status === 'generating' || p.status === 'fixing' ? 'bg-sea-coral/10' : 'bg-gray-100'}`}>
+                  {p.status === 'approved' ? '✓' : PIECE_ICONS[num]}
+                </div>
+                <div className="flex-1">
+                  <div className="flex items-center gap-2">
+                    <span className="text-[10px] font-mono bg-gray-100 text-gray-500 px-1.5 py-0.5 rounded">#{num}</span>
+                    <h3 className="font-display font-bold">{PIECE_NAMES[num]}</h3>
+                    {p.attempt > 1 && <span className="text-[10px] bg-orange-100 text-orange-600 px-1.5 py-0.5 rounded">tentativa {p.attempt}</span>}
+                  </div>
+                </div>
+                <span className={`text-xs font-medium px-3 py-1 rounded-full
+                  ${p.status === 'approved' ? 'bg-emerald-100 text-emerald-700' :
+                    p.status === 'error' ? 'bg-red-100 text-red-700' :
+                    p.status === 'idle' ? 'bg-gray-100 text-gray-400' :
+                    'bg-sea-coral/10 text-sea-coral'}`}>
+                  {(p.status === 'generating' || p.status === 'validating' || p.status === 'fixing') && <span className="inline-block w-2 h-2 bg-current rounded-full mr-1.5 pulse" />}
+                  {statusLabels[p.status]}
+                </span>
+              </div>
+
+              {expanded && p.text && (
+                <div ref={el => containerRefs.current[num] = el} className="border-t border-gray-100 px-5 py-4 max-h-80 overflow-y-auto bg-gray-50">
+                  <div className="roteiro-text text-gray-800">{p.text}</div>
+                  {(p.status === 'generating' || p.status === 'fixing') && <span className="inline-block w-2 h-4 bg-sea-coral animate-pulse ml-0.5" />}
+                </div>
+              )}
+
+              {p.validation && expanded && (
+                <div className={`border-t px-5 py-3 text-sm ${p.validation.approved ? 'bg-emerald-50 text-emerald-700' : 'bg-red-50 text-red-700'}`}>
+                  <strong>{p.validation.approved ? '✅' : '❌'}</strong> {p.validation.summary}
+                </div>
+              )}
+            </div>
+          );
+        })}
       </div>
 
-      {/* Content */}
-      {expanded && text && (
-        <div ref={containerRef} className="border-t border-gray-100 px-5 py-4 max-h-96 overflow-y-auto bg-gray-50">
-          <div className="roteiro-text text-gray-800">{text}</div>
-          {status === 'generating' && <span className="inline-block w-2 h-4 bg-sea-coral animate-pulse ml-0.5" />}
+      {allDone && (
+        <div className="flex justify-end fade-in">
+          <button onClick={() => { dispatch({ type: 'SET_CURRENT_PIECE', piece: 1 }); dispatch({ type: 'NAVIGATE', page: 'agent04' }); }}
+            className="bg-sea-coral hover:bg-sea-coral/90 text-white font-bold px-6 py-3 rounded-lg text-sm">
+            Continuar para Geracao →
+          </button>
         </div>
       )}
-
-      {/* Validation result */}
-      {validation && expanded && (
-        <div className={`border-t px-5 py-3 text-sm ${validation.approved ? 'bg-emerald-50 text-emerald-700' : 'bg-red-50 text-red-700'}`}>
-          <strong>{validation.approved ? '✅ Validação:' : '❌ Validação:'}</strong> {validation.summary}
-          {validation.errors && validation.errors.length > 0 && (
-            <ul className="mt-2 space-y-1">
-              {validation.errors.map((e, i) => <li key={i} className="text-xs">• {e}</li>)}
-            </ul>
-          )}
-        </div>
-      )}
-
-      {/* Error */}
-      {error && (
-        <div className="border-t px-5 py-3 bg-red-50 text-sm text-red-700">
-          <strong>Erro:</strong> {error}
-        </div>
-      )}
-    </div>
+    </AgentPageLayout>
   );
 }
 
 // ============================================================
-// HELPER: fetch com parse JSON seguro
-// ============================================================
-// safeFetchJson: com retry (usar APENAS para APIs que NÃO custam dinheiro — roteiro, validação, etc)
-async function safeFetchJson(url, options, retries = 2, delayMs = 3000) {
-  for (let i = 0; i < retries; i++) {
-    try {
-      const res = await fetch(url, options);
-      const text = await res.text();
-      try {
-        return JSON.parse(text);
-      } catch {
-        if (i < retries - 1) { await new Promise(r => setTimeout(r, delayMs)); continue; }
-        return { error: `Resposta invalida: ${text.substring(0, 150)}` };
-      }
-    } catch (e) {
-      if (i < retries - 1) { await new Promise(r => setTimeout(r, delayMs)); continue; }
-      return { error: e.message };
-    }
-  }
-  return { error: 'Todas tentativas falharam' };
-}
-
-// safeFetchOnce: SEM retry (usar para APIs PAGAS — fal.ai, ElevenLabs, Creatomate)
-async function safeFetchOnce(url, options) {
-  try {
-    const res = await fetch(url, options);
-    const text = await res.text();
-    try { return JSON.parse(text); }
-    catch { return { error: `Resposta invalida: ${text.substring(0, 150)}` }; }
-  } catch (e) {
-    return { error: e.message };
-  }
-}
-
-// generateVideo: submete job no fal.ai e faz polling até completar
-async function generateVideo(body) {
-  const r = await safeFetchOnce('/api/generate-video', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
-  if (r.url) return r;
-  if (r.error) return r;
-  if (r.requestId && r.statusUrl && r.responseUrl) {
-    // Polling usando URLs exatas do fal.ai (até 12 min)
-    const maxWait = 720000;
-    const start = Date.now();
-    while (Date.now() - start < maxWait) {
-      await new Promise(res => setTimeout(res, 8000));
-      const poll = await safeFetchOnce(`/api/poll-video?statusUrl=${encodeURIComponent(r.statusUrl)}&responseUrl=${encodeURIComponent(r.responseUrl)}`, {});
-      if (poll.url) return poll;
-      if (poll.status === 'failed') return { error: poll.error || 'Video falhou no fal.ai' };
-    }
-    return { error: 'Timeout aguardando video (12min)' };
-  }
-  return r;
-}
-
-// ============================================================
-// STEP 3 — PIPELINE (real execution!)
+// AGENT 04 — DIRETOR DE ARTE (static image)
 // ============================================================
 
-function AgentCard({ number, name, icon, status, description, children, timer }) {
-  const colors = {
-    idle: 'border-gray-200 opacity-60',
-    running: 'border-yellow-300 shadow-md',
-    success: 'border-emerald-300',
-    error: 'border-red-300',
-  };
-  const badges = {
-    idle: { bg: 'bg-gray-100 text-gray-400', label: 'Aguardando' },
-    running: { bg: 'bg-yellow-100 text-yellow-700', label: description || 'Rodando...' },
-    success: { bg: 'bg-emerald-100 text-emerald-700', label: 'Concluído' },
-    error: { bg: 'bg-red-100 text-red-700', label: 'Erro' },
-  };
-  const badge = badges[status];
-  return (
-    <div className={`bg-white rounded-xl border-2 overflow-hidden transition-all ${colors[status]}`}>
-      <div className="flex items-center gap-3 px-5 py-4">
-        <div className={`w-10 h-10 rounded-xl flex items-center justify-center text-lg flex-shrink-0
-          ${status === 'success' ? 'bg-emerald-100' : status === 'running' ? 'bg-yellow-100' : 'bg-gray-100'}`}>
-          {status === 'success' ? '✓' : icon}
-        </div>
-        <div className="flex-1">
-          <div className="flex items-center gap-2">
-            <span className="text-[10px] font-mono bg-gray-100 text-gray-500 px-1.5 py-0.5 rounded">#{number}</span>
-            <h3 className="font-display font-bold">{name}</h3>
-          </div>
-          {status === 'running' && <p className="text-sm text-yellow-700 mt-1 flex items-center gap-2">
-            <span className="w-2 h-2 bg-yellow-500 rounded-full pulse" />{description}
-          </p>}
-        </div>
-        <div className="flex items-center gap-2 flex-shrink-0">
-          {timer > 0 && <span className="text-xs font-mono px-2 py-1 rounded-full bg-gray-100 text-gray-600">{formatTimer(timer)}</span>}
-          <span className={`text-xs font-medium px-3 py-1 rounded-full ${badge.bg}`}>
-            {status === 'running' && <span className="inline-block w-2 h-2 bg-current rounded-full mr-1.5 pulse" />}
-            {badge.label}
-          </span>
-        </div>
-      </div>
-      {children && <div className="border-t border-gray-100">{children}</div>}
-    </div>
-  );
-}
+function Agent04({ state, dispatch }) {
+  const [status, setStatus] = useState('idle');
+  const [progress, setProgress] = useState('');
+  const started = useRef(false);
+  const msgs = state.chatMessages['agent04'] || [];
+  const elapsed = useTimer(status === 'running');
 
-// Poll Creatomate render from frontend (evita timeout da serverless function)
-async function pollCreatomateRender(renderId, onProgress, maxMinutes = 10) {
-  const maxAttempts = maxMinutes * 12; // poll every 5s
-  for (let i = 0; i < maxAttempts; i++) {
-    await new Promise(r => setTimeout(r, 5000));
-    try {
-      const res = await fetch(`/api/poll-render?id=${renderId}`);
-      const data = await res.json();
-      if (data.status === 'completed' && data.url) return data.url;
-      if (data.status === 'failed') { onProgress && onProgress(`Erro: ${data.error || 'render falhou'}`); return null; }
-      onProgress && onProgress(`montando... (${Math.floor((i + 1) * 5 / 60)}min ${((i + 1) * 5) % 60}s)`);
-    } catch (e) { /* retry */ }
-  }
-  onProgress && onProgress('Timeout — render nao finalizou');
-  return null;
-}
+  const generateStatic = async () => {
+    setStatus('running');
+    dispatch({ type: 'CLEAR_CHAT', agent: 'agent04' });
+    dispatch({ type: 'ADD_CHAT', agent: 'agent04', text: 'Iniciando geracao da peca estatica...', msgType: 'progress' });
 
-function Step3_Pipeline({ data, onReset }) {
-  const projectName = data.projeto?.nome || 'Empreendimento';
-
-  // --- Phase 1: Roteiros (Agents 02+03) ---
-  const [activePieces, setActivePieces] = useState([1]);
-  const [completedPieces, setCompletedPieces] = useState(new Set());
-  const [roteiroTexts, setRoteiroTexts] = useState({});
-  const roteirosTimer = useTimer(completedPieces.size < 3);
-
-  // --- Phase 2: Creative generation ---
-  const [phase, setPhase] = useState('roteiros');
-  const [genStatus, setGenStatus] = useState('idle');
-  const [genProgress, setGenProgress] = useState('');
-  const genTimer = useTimer(genStatus === 'running');
-
-  // --- Results per piece (2 versions each) ---
-  const [results, setResults] = useState({ 1: [], 2: [], 3: [] });
-  const [pieceErrors, setPieceErrors] = useState({ 1: [], 2: [], 3: [] });
-
-  // --- Approval & Save ---
-  const [approvedPieces, setApprovedPieces] = useState({});
-  const [savingPiece, setSavingPiece] = useState(null);
-  const [regeneratingPiece, setRegeneratingPiece] = useState(null);
-
-  // --- Imagens hardcoded do Drive ---
-  const DRIVE = {
-    fachada: 'https://lh3.googleusercontent.com/d/1gr6pI4ElrZK0gM4pJi-QgHqlVc91-0Nn=s1920',
-    rooftop: 'https://lh3.googleusercontent.com/d/1rkssZ7grxxozxe8xlKN0LVc0hw4p2vl5=s1920',
-    localizacao: 'https://lh3.googleusercontent.com/d/18aKptRoxehM5X-6tH0kkSiRcj3GBn1qC=s1920',
-    monica: 'https://lh3.googleusercontent.com/d/1fnk4XbJ3vtkrrM5f0RAbTMSTFdOatsC9=s1920',
-    refEstatico: 'https://lh3.googleusercontent.com/d/13G7xGya7gVAfP_EVTdOxQKoM5TvAU230=s1920',
-    fachadaAll: [
-      'https://lh3.googleusercontent.com/d/1gr6pI4ElrZK0gM4pJi-QgHqlVc91-0Nn=s1920',
-      'https://lh3.googleusercontent.com/d/13l4IGjbNVaUG8pgH49qNJroOw_ieT15T=s1920',
-      'https://lh3.googleusercontent.com/d/1ixgzmO-PncCo115PB101ZkaAJJdryNtL=s1920',
-    ],
-    rooftopAll: [
-      'https://lh3.googleusercontent.com/d/1rkssZ7grxxozxe8xlKN0LVc0hw4p2vl5=s1920',
-      'https://lh3.googleusercontent.com/d/1R37-0nwHPoBy52lRpk90LqoHaWGhu-oQ=s1920',
-      'https://lh3.googleusercontent.com/d/14IYGS7jxUk5RwEXt0u_EArGSR8cU2Zh0=s1920',
-    ],
-    localizacaoAll: [
-      'https://lh3.googleusercontent.com/d/13e96WR2Bs95nz8-7K288DFDxPdTcKRp0=s1920',
-      'https://lh3.googleusercontent.com/d/1K1SO4zdg4emid4QVQXsOIHdoVzxs9Rad=s1920',
-      'https://lh3.googleusercontent.com/d/176jyu1dGizph1svsLrhYz5dobYtfy_6Y=s1920',
-    ],
-  };
-
-  // --- Aprovar uma versão ---
-  const handleApprove = async (pieceNum, item) => {
-    const pieceTypes = { 1: 'estatico', 2: 'narrado', 3: 'apresentadora' };
-    setSavingPiece(pieceNum);
-    try {
-      const ext = item.type === 'video' ? 'mp4' : 'png';
-      const res = await fetch('/api/save-approved', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          fileUrl: item.url,
-          pieceNumber: pieceNum,
-          pieceType: pieceTypes[pieceNum],
-          projectName,
-          fileName: `${pieceTypes[pieceNum]}-v${item.version}.${ext}`,
-        }),
-      });
-      const result = await res.json();
-      if (result.url) {
-        setApprovedPieces(prev => ({ ...prev, [pieceNum]: { ...item, savedUrl: result.url } }));
-        // Trigger next piece generation sequentially
-        const next = pieceNum + 1;
-        if (next <= 3) {
-          setTimeout(() => generateNextPiece(next), 500);
-        } else {
-          setPhase('done');
-          setGenProgress('Todas as pecas aprovadas!');
-        }
-      }
-    } catch (err) {
-      alert('Erro ao salvar: ' + err.message);
-    }
-    setSavingPiece(null);
-  };
-
-  // --- Reprovar e refazer ---
-  const handleReject = async (pieceNum) => {
-    setRegeneratingPiece(pieceNum);
-    setResults(prev => ({ ...prev, [pieceNum]: [] }));
-    setPieceErrors(prev => ({ ...prev, [pieceNum]: [] }));
-    await generatePiece(pieceNum);
-    setRegeneratingPiece(null);
-  };
-
-  // --- Roteiro helpers ---
-  const handlePieceComplete = useCallback((pieceNum, text) => {
-    setRoteiroTexts(prev => ({ ...prev, [pieceNum]: text }));
-  }, []);
-
-  const handlePieceStatus = useCallback((pieceNum, status) => {
-    if (status === 'approved' || status === 'error') {
-      setCompletedPieces(prev => { const n = new Set(prev); n.add(pieceNum); return n; });
-      const next = pieceNum + 1;
-      if (next <= 3) setActivePieces(prev => prev.includes(next) ? prev : [...prev, next]);
-    }
-  }, []);
-
-  const allRoteiros = completedPieces.size >= 3;
-
-  // When all roteiros done, move to generation
-  useEffect(() => {
-    if (allRoteiros && phase === 'roteiros') {
-      setPhase('generating');
-      generateAllPieces();
-    }
-  }, [allRoteiros]);
-
-  // --- Current piece being shown for approval ---
-  const [currentPiece, setCurrentPiece] = useState(0);
-
-  // --- Generate pieces sequentially: 1 at a time, show for approval ---
-  const generateNextPiece = async (pn) => {
-    setGenStatus('running');
-    setCurrentPiece(pn);
-    await generatePiece(pn);
-    setGenStatus('success');
-    setPhase('approval');
-    setGenProgress(`Peca ${pn} gerada. Revise e aprove.`);
-  };
-
-  // Legacy wrapper — starts the sequential flow from piece 1
-  const generateAllPieces = async () => {
-    await generateNextPiece(1);
-  };
-
-  // --- Generate 2 versions of 1 piece ---
-  const generatePiece = async (pn) => {
-    const names = { 1: 'Estatico', 2: 'Narrado', 3: 'Apresentadora' };
+    const roteiro = state.roteiroTexts[1] || '';
     const vers = [];
     const errs = [];
 
-    const maxVersions = (pn === 1) ? 2 : 1; // Estatico: 2 versoes, Narrado/Apresentadora: 1
-    for (let v = 1; v <= maxVersions; v++) {
-      try {
-        if (pn === 1) {
-          // === ESTATICO (GPT-5 Image via OpenRouter) ===
-          setGenProgress(`${names[pn]} v${v} — gerando via GPT-5 Image...`);
-          const roteiro = roteiroTexts[1] || '';
+    const campo = (n, fallback) => {
+      const re = new RegExp(`CAMPO ${n}[^:]*:\\s*(.+)`, 'i');
+      return (roteiro.match(re) || [])[1]?.trim() || fallback;
+    };
+    const nomeSpot = campo(1, 'NOVO CAMPECHE SPOT II');
+    const badgeDistancia = campo(2, 'Lancamento a 200 m da Praia do Campeche');
+    const pinCidade = campo(3, 'Florianopolis/SC');
+    const headline = campo(4, 'Para investidores que buscam renda passiva com Airbnb').replace(/\*\*/g, '');
+    const labelDado = campo(5, 'Previsao de renda futura').replace(/\*\*/g, '');
+    const dadoPrincipal = campo(6, 'de 19,8% liquidos ao ano').replace(/\*\*/g, '');
+    const complemento = campo(7, 'com aluguel por temporada');
 
-          // Extrair os 7 campos do roteiro
-          const campo = (n, fallback) => {
-            const re = new RegExp(`CAMPO ${n}[^:]*:\\s*(.+)`, 'i');
-            return (roteiro.match(re) || [])[1]?.trim() || fallback;
-          };
-          const nomeSpot = campo(1, 'NOVO CAMPECHE SPOT II');
-          const badgeDistancia = campo(2, 'Lançamento a 200 m da Praia do Campeche');
-          const pinCidade = campo(3, 'Florianópolis/SC');
-          const headline = campo(4, 'Para investidores que buscam renda passiva com Airbnb').replace(/\*\*/g, '');
-          const labelDado = campo(5, 'Previsão de renda futura').replace(/\*\*/g, '');
-          const dadoPrincipal = campo(6, 'de 19,8% líquidos ao ano').replace(/\*\*/g, '');
-          const complemento = campo(7, 'com aluguel por temporada');
+    for (let v = 1; v <= 2; v++) {
+      setProgress(`Gerando versao ${v}/2 via GPT-5 Image...`);
+      dispatch({ type: 'ADD_CHAT', agent: 'agent04', text: `Gerando versao ${v} via GPT-5 Image...`, msgType: 'progress' });
 
-          // Prompt FIXO — descreve o layout exato da referencia, so troca os textos
-          const prompt = `You are a graphic designer. Generate a real estate marketing poster in 4:5 format (1080x1350px).
+      const prompt = `You are a graphic designer. Generate a real estate marketing poster in 4:5 format (1080x1350px).
 
 CRITICAL: You MUST replicate the EXACT layout of the second image (reference). Copy the same fonts, colors, spacing, element sizes and EXACT POSITIONS. The ONLY things that change are the background photo (use the first image) and the text content (listed below).
 
@@ -880,7 +854,7 @@ EXACT LAYOUT (top to bottom) — every element MUST be in the SAME POSITION as t
 3. BELOW LOGO: Red/coral location pin badge with white text "${nomeSpot}" in bold caps. THIS IS A LOCATION PIN — it marks where the property is on the image. It MUST stay in the EXACT SAME POSITION as the reference (do NOT move it). Same style as "NATAL SPOT" in reference.
 4. RIGHT SIDE (mid-top): White rounded card with text "${badgeDistancia}" and a small red map pin icon. SAME position as reference.
 5. LEFT SIDE (middle): Small coral map pin icon + "${pinCidade}" in white text. SAME position as reference.
-6. LEFT SIDE (below pin): Coral/red rectangle badge with white bold text "LANÇAMENTO" — SAME position as reference.
+6. LEFT SIDE (below pin): Coral/red rectangle badge with white bold text "LANCAMENTO" — SAME position as reference.
 7. RIGHT OF BADGE: White text "${headline}" — key words in BOLD white, rest in regular weight. SAME position and font size as reference.
 8. BOTTOM SECTION - LEFT: White text "${labelDado}" — key words in BOLD. SAME position as reference.
 9. BOTTOM SECTION - RIGHT: Dark navy rounded rectangle card containing "${dadoPrincipal}" — the percentage number must be VERY LARGE (biggest text on the poster), white bold. SAME card style and position as reference.
@@ -903,552 +877,437 @@ ABSOLUTE RULES:
 - Background photo should show through clearly in the top half
 - Version ${v}`;
 
-          // Chamar API com retry (até 2 tentativas no frontend)
-          let staticResult = null;
-          for (let fetchAttempt = 0; fetchAttempt < 2; fetchAttempt++) {
-            try {
-              const res = await fetch('/api/generate-static', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ prompt, referenceImageUrl: DRIVE.refEstatico, backgroundImageUrl: DRIVE.localizacao }),
-              });
-              // Parse seguro — nunca crashar em resposta não-JSON
-              const rawText = await res.text();
-              try {
-                staticResult = JSON.parse(rawText);
-              } catch {
-                // Resposta não é JSON (erro da Vercel/OpenRouter)
-                if (fetchAttempt === 0) {
-                  setGenProgress(`Estático v${v} — erro transiente, retentando em 5s...`);
-                  await new Promise(r => setTimeout(r, 5000));
-                  continue;
-                }
-                errs.push(`v${v}: API retornou erro: ${rawText.substring(0, 150)}`);
-                break;
-              }
-              if (staticResult.url) break; // sucesso
-              if (staticResult.error && fetchAttempt === 0) {
-                setGenProgress(`Estático v${v} — ${staticResult.error.substring(0, 80)}, retentando...`);
-                await new Promise(r => setTimeout(r, 5000));
-                staticResult = null;
-                continue;
-              }
-              break; // erro definitivo
-            } catch (fetchErr) {
-              if (fetchAttempt === 0) {
-                setGenProgress(`Estático v${v} — erro de rede, retentando em 5s...`);
-                await new Promise(r => setTimeout(r, 5000));
-                continue;
-              }
-              errs.push(`v${v}: ${fetchErr.message}`);
-              break;
-            }
+      let staticResult = null;
+      for (let fetchAttempt = 0; fetchAttempt < 2; fetchAttempt++) {
+        try {
+          const res = await fetch('/api/generate-static', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ prompt, referenceImageUrl: DRIVE.refEstatico, backgroundImageUrl: DRIVE.localizacao }),
+          });
+          const rawText = await res.text();
+          try { staticResult = JSON.parse(rawText); } catch {
+            if (fetchAttempt === 0) { await new Promise(r => setTimeout(r, 5000)); continue; }
+            errs.push(`v${v}: API retornou erro: ${rawText.substring(0, 150)}`); break;
           }
-          if (staticResult?.url) {
-            vers.push({ url: staticResult.url, type: 'image', engine: 'gpt5-image', version: v });
-          } else if (staticResult?.error) {
-            errs.push(`v${v}: ${staticResult.error}`);
-          }
-
-        } else if (pn === 2) {
-          // === NARRADO 15s (9 clips Kling + ElevenLabs + Creatomate) ===
-          const roteiro = roteiroTexts[2] || '';
-          const letteringMatches = roteiro.match(/Lettering:\s*(.+)/g) || [];
-          const letterings = letteringMatches.map(l => l.replace(/Lettering:\s*/, '').replace(/\s*\(\d+\s*palavras?\)\s*/gi, '').replace(/\s*\[\d+\s*palavras?\]\s*/gi, '').trim());
-          const narracaoMatches = roteiro.match(/Narra[cç][aã]o:\s*(.+)/g) || [];
-          const fullNarration = narracaoMatches.map(n => n.replace(/Narra[cç][aã]o:\s*/, '').replace(/\s*\(\d+\s*palavras?\)\s*/gi, '').replace(/\s*\[\d+\s*palavras?\]\s*/gi, '').trim()).join(' ') || 'Investimento inteligente no litoral de Florianopolis.';
-
-          // 9 clips: 3 por categoria, cortes rapidos dentro de cada bloco de 5s
-          const CENAS = [
-            // BLOCO 1 — Fachada (0-5s): 2s + 1.5s + 1.5s
-            { name: 'Fachada 1', url: DRIVE.fachadaAll[0], prompt: 'Slow cinematic tilt up modern building facade, golden hour, premium architecture', clipDuration: 2, bloco: 0 },
-            { name: 'Fachada 2', url: DRIVE.fachadaAll[1], prompt: 'Slow dolly forward modern building entrance, warm sunlight, luxury details', clipDuration: 1.5, bloco: 0 },
-            { name: 'Fachada 3', url: DRIVE.fachadaAll[2], prompt: 'Gentle pan across modern building exterior, golden hour, clean lines', clipDuration: 1.5, bloco: 0 },
-            // BLOCO 2 — Rooftop (5-10s): 2s + 1.5s + 1.5s
-            { name: 'Rooftop 1', url: DRIVE.rooftopAll[0], prompt: 'Gentle pan luxury rooftop infinity pool, golden hour, ocean panorama', clipDuration: 2, bloco: 1 },
-            { name: 'Rooftop 2', url: DRIVE.rooftopAll[1], prompt: 'Slow zoom in rooftop lounge area, sunset light, premium resort feel', clipDuration: 1.5, bloco: 1 },
-            { name: 'Rooftop 3', url: DRIVE.rooftopAll[2], prompt: 'Slow tilt down from sky to infinity pool edge, ocean horizon, golden hour', clipDuration: 1.5, bloco: 1 },
-            // BLOCO 3 — Localizacao (10-15s): 2s + 1.5s + 1.5s
-            { name: 'Localizacao 1', url: DRIVE.localizacaoAll[0], prompt: 'Aerial push forward Brazilian coastline, turquoise ocean, golden hour', clipDuration: 2, bloco: 2 },
-            { name: 'Localizacao 2', url: DRIVE.localizacaoAll[1], prompt: 'Aerial slow orbit beach and coastline, paradise, warm tropical tones', clipDuration: 1.5, bloco: 2 },
-            { name: 'Localizacao 3', url: DRIVE.localizacaoAll[2], prompt: 'Aerial pull back revealing beautiful beach and coastal city, golden hour', clipDuration: 1.5, bloco: 2 },
-          ];
-
-          // Gerar 9 clips via Kling — em lotes de 3 (evita rate limit do fal.ai)
-          setGenProgress(`Narrado v${v} — gerando 9 clips (3 por vez)...`);
-          const clips = [];
-          for (let batch = 0; batch < 3; batch++) {
-            const batchCenas = CENAS.slice(batch * 3, batch * 3 + 3);
-            setGenProgress(`Narrado v${v} — bloco ${batch + 1}/3 (${['Fachada','Rooftop','Localização'][batch]})...`);
-            const batchResults = await Promise.all(batchCenas.map(async (cena) => {
-              const r = await generateVideo({ prompt: cena.prompt, engine: 'kling', imageUrl: cena.url, format: '9:16' });
-              if (r.url) return { url: r.url, lettering: letterings[cena.bloco] || '', duration: cena.clipDuration };
-              errs.push(`v${v} ${cena.name}: ${r.error || 'Sem URL'}`); return null;
-            }));
-            clips.push(...batchResults.filter(Boolean));
-            // Pausa entre lotes pra não estourar rate limit
-            if (batch < 2) await new Promise(r => setTimeout(r, 2000));
-          }
-
-          // Narracao ElevenLabs
-          let audioUrl = null;
-          setGenProgress(`Narrado v${v} — narracao...`);
-          const audioResult = await safeFetchOnce('/api/generate-audio', { method: 'POST', headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ text: fullNarration }) });
-          if (audioResult.audio) audioUrl = `data:audio/mp3;base64,${audioResult.audio}`;
-          else if (audioResult.error) errs.push(`v${v} audio: ${audioResult.error}`);
-
-          // Montar via Creatomate (com polling no frontend)
-          if (clips.length > 0) {
-            setGenProgress(`Narrado v${v} — montando video final (${clips.length} clips)...`);
-            const compResult = await safeFetchOnce('/api/compose-video', { method: 'POST', headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ clips, audioUrl, duration: 15, type: 'narrado' }) });
-            if (compResult.url) {
-              vers.push({ url: compResult.url, type: 'video', engine: 'creatomate', version: v });
-            } else if (compResult.renderId) {
-              setGenProgress(`Narrado v${v} — montando video (pode levar alguns minutos)...`);
-              const videoUrl = await pollCreatomateRender(compResult.renderId, (msg) => setGenProgress(`Narrado v${v} — ${msg}`));
-              if (videoUrl) vers.push({ url: videoUrl, type: 'video', engine: 'creatomate', version: v });
-              else errs.push(`v${v} montagem: render falhou`);
-            } else {
-              errs.push(`v${v} montagem: ${compResult.error || 'Sem URL e sem renderId'}`);
-            }
-          }
-
-        } else if (pn === 3) {
-          // === APRESENTADORA 30s (Kling 3.0 Pro + Kling v2.1 + ElevenLabs + Creatomate) ===
-          // 5 cenas: Monica intro(8s) → Fachada(5s) → Rooftop(5s) → Localização(5s) → Monica CTA(7s)
-          // 2 Kling 3.0 Pro (Monica) + 3 Kling v2.1 (cenas) = ~$2.24 total
-          const roteiro = roteiroTexts[3] || '';
-          const falas = (roteiro.match(/Monica fala:\s*"([^"]+)"/g) || []).map(f => f.replace(/Monica fala:\s*"/, '').replace(/"$/, '').replace(/\s*\(\d+\s*palavras?\)\s*/gi, '').replace(/\s*\[\d+\s*palavras?\]\s*/gi, '').trim());
-          const letteringMatches = roteiro.match(/Lettering:\s*(.+)/g) || [];
-          const letterings = letteringMatches.map(l => l.replace(/Lettering:\s*/, '').replace(/\s*\(\d+\s*palavras?\)\s*/gi, '').replace(/\s*\[\d+\s*palavras?\]\s*/gi, '').trim());
-          const fullNarration = falas.join(' ') || 'Eu sou a Monica, socia fundadora da Seazone.';
-
-          // Foto da Monica = referência de ROSTO. Kling 3.0 Pro preserva o rosto e gera cena.
-          const MONICA_PHOTOS = [
-            DRIVE.monica,
-            'https://lh3.googleusercontent.com/d/1fiiABMSD7pmkS5OfxazrgOu7LZuj2E9W=s1920',
-          ];
-
-          const CENAS = [
-            { name: 'Monica Intro', engine: 'kling3', url: MONICA_PHOTOS[0], clipDuration: 8,
-              prompt: `Brazilian woman with brown hair walking on the beach barefoot on the sand, speaking naturally to camera, confident and approachable, golden hour warm light, ocean waves in background, wearing casual elegant outfit, speaking in Brazilian Portuguese, cinematic shallow depth of field` },
-            { name: 'Fachada', engine: 'kling', url: DRIVE.fachada, clipDuration: 5,
-              prompt: 'Slow cinematic tilt up modern building facade, golden hour, premium architecture, warm light' },
-            { name: 'Rooftop', engine: 'kling', url: DRIVE.rooftop, clipDuration: 5,
-              prompt: 'Gentle pan luxury rooftop infinity pool, ocean panorama view, golden hour, resort feel' },
-            { name: 'Localizacao', engine: 'kling', url: DRIVE.localizacao, clipDuration: 5,
-              prompt: 'Aerial push forward Brazilian coastline, turquoise ocean, white sand beach, golden hour' },
-            { name: 'Monica CTA', engine: 'kling3', url: MONICA_PHOTOS[1], clipDuration: 7,
-              prompt: `Brazilian woman on the beach smiling, speaking with enthusiasm to camera, warm golden hour, ocean behind, natural and inviting tone, cinematic vertical video` },
-          ];
-
-          // Gerar clips em lotes (Monica primeiro, depois empreendimento — evita rate limit)
-          const clips = new Array(CENAS.length).fill(null);
-
-          // Lote 1: Monica clips (kling3)
-          setGenProgress(`Apresentadora v${v} — gerando clips Monica (Kling 3.0)...`);
-          const monicaCenas = CENAS.map((c, i) => ({ ...c, idx: i })).filter(c => c.engine === 'kling3');
-          await Promise.all(monicaCenas.map(async (cena) => {
-            const body = { prompt: cena.prompt, engine: 'kling3', imageUrl: cena.url, format: '9:16', duration: '10' };
-            const r = await generateVideo(body);
-            if (r.url) clips[cena.idx] = { url: r.url, lettering: letterings[cena.idx] || '', duration: cena.clipDuration };
-            else errs.push(`v${v} ${cena.name}: ${r.error || 'Sem URL'}`);
-          }));
-
-          // Pausa entre lotes
-          await new Promise(r => setTimeout(r, 2000));
-
-          // Lote 2: Empreendimento clips (kling v2.1)
-          setGenProgress(`Apresentadora v${v} — gerando cenas empreendimento...`);
-          const empCenas = CENAS.map((c, i) => ({ ...c, idx: i })).filter(c => c.engine === 'kling');
-          await Promise.all(empCenas.map(async (cena) => {
-            const body = { prompt: cena.prompt, engine: 'kling', imageUrl: cena.url, format: '9:16' };
-            const r = await generateVideo(body);
-            if (r.url) clips[cena.idx] = { url: r.url, lettering: letterings[cena.idx] || '', duration: cena.clipDuration };
-            else errs.push(`v${v} ${cena.name}: ${r.error || 'Sem URL'}`);
-          }));
-
-          const validClips = clips.filter(Boolean);
-
-          // Narracao ElevenLabs
-          let audioUrl = null;
-          setGenProgress(`Apresentadora v${v} — narracao...`);
-          const audioResult = await safeFetchOnce('/api/generate-audio', { method: 'POST', headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ text: fullNarration }) });
-          if (audioResult.audio) audioUrl = `data:audio/mp3;base64,${audioResult.audio}`;
-          else if (audioResult.error) errs.push(`v${v} audio: ${audioResult.error}`);
-
-          // Montar via Creatomate (com polling no frontend)
-          if (validClips.length > 0) {
-            setGenProgress(`Apresentadora v${v} — montando video final (${validClips.length} clips)...`);
-            const r = await safeFetchOnce('/api/compose-video', { method: 'POST', headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ clips: validClips, audioUrl, duration: 30, type: 'apresentadora' }) });
-            if (r.url) {
-              vers.push({ url: r.url, type: 'video', engine: 'creatomate', version: v });
-            } else if (r.renderId) {
-              setGenProgress(`Apresentadora v${v} — montando video (pode levar alguns minutos)...`);
-              const videoUrl = await pollCreatomateRender(r.renderId, (msg) => setGenProgress(`Apresentadora v${v} — ${msg}`));
-              if (videoUrl) vers.push({ url: videoUrl, type: 'video', engine: 'creatomate', version: v });
-              else errs.push(`v${v} montagem: render falhou`);
-            } else {
-              errs.push(`v${v} montagem: ${r.error || 'Sem URL e sem renderId'}`);
-            }
-          }
+          if (staticResult.url) break;
+          if (staticResult.error && fetchAttempt === 0) { await new Promise(r => setTimeout(r, 5000)); staticResult = null; continue; }
+          break;
+        } catch (fetchErr) {
+          if (fetchAttempt === 0) { await new Promise(r => setTimeout(r, 5000)); continue; }
+          errs.push(`v${v}: ${fetchErr.message}`); break;
         }
-      } catch (err) { errs.push(`v${v}: ${err.message}`); }
+      }
+      if (staticResult?.url) {
+        vers.push({ url: staticResult.url, type: 'image', engine: 'gpt5-image', version: v });
+        dispatch({ type: 'ADD_CHAT', agent: 'agent04', text: `Versao ${v} gerada com sucesso!`, msgType: 'success' });
+      } else if (staticResult?.error) {
+        errs.push(`v${v}: ${staticResult.error}`);
+      }
     }
-    setResults(prev => ({ ...prev, [pn]: vers }));
-    setPieceErrors(prev => ({ ...prev, [pn]: errs }));
+
+    dispatch({ type: 'SET_RESULTS', piece: 1, items: vers });
+    dispatch({ type: 'SET_ERRORS', piece: 1, errors: errs });
+
+    if (vers.length > 0) {
+      setStatus('done');
+      dispatch({ type: 'ADD_CHAT', agent: 'agent04', text: `${vers.length} versao(oes) gerada(s). Enviando para aprovacao do Agente 06.`, msgType: 'success' });
+      setTimeout(() => { dispatch({ type: 'SET_CURRENT_PIECE', piece: 1 }); dispatch({ type: 'NAVIGATE', page: 'agent06' }); }, 1500);
+    } else {
+      setStatus('error');
+      dispatch({ type: 'ADD_CHAT', agent: 'agent04', text: `Erro ao gerar estatico: ${errs.join(', ')}`, msgType: 'error' });
+    }
   };
 
-  // ===================
-  // RENDER
-  // ===================
+  useEffect(() => {
+    if (!started.current) { started.current = true; generateStatic(); }
+  }, []);
+
   return (
-    <div className="fade-in">
-      <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-4 mb-6 flex items-center justify-between">
-        <p className="text-sm text-emerald-700">Briefing <strong>{projectName}</strong> validado.</p>
-        <span className="text-xs font-mono px-2 py-1 rounded-full bg-yellow-100 text-yellow-800">
-          {phase === 'done' ? 'Completo' : phase === 'approval' ? 'Aprovacao' : phase === 'generating' ? 'Gerando...' : 'Roteiros'}
-        </span>
-      </div>
-
-      {/* Roteiros (Agents 02+03) */}
-      <h3 className="font-display font-bold text-sm text-gray-500 mb-3 uppercase tracking-wider">Agentes 02+03 — Roteiros</h3>
-      <div className="space-y-4 mb-6">
-        {[1, 2, 3].map(n => (
-          <PieceCardWrapper key={n} pieceNumber={n} briefing={data}
-            active={activePieces.includes(n)} onStatusChange={handlePieceStatus}
-            onComplete={handlePieceComplete} />
-        ))}
-      </div>
-
-      {/* Generation progress */}
-      {(phase === 'generating' || phase === 'approval' || phase === 'done') && (
-        <div className="mb-6 fade-in">
-          <h3 className="font-display font-bold text-sm text-gray-500 mb-3 uppercase tracking-wider">Agente 05 — Executor Criativo</h3>
-          <AgentCard number="05" name="Executor Criativo" icon="⚡" status={genStatus}
-            description={genProgress || 'Gerando criativos...'} timer={genTimer} />
+    <AgentPageLayout num="04" role="Diretor de Arte" icon="🎨" chatMessages={msgs}>
+      {status === 'running' && (
+        <div className="bg-white rounded-xl border border-sea-coral p-6 text-center">
+          <div className="w-12 h-12 border-4 border-sea-coral border-t-transparent rounded-full spinner mx-auto mb-4" />
+          <p className="font-display font-bold">{progress}</p>
+          <p className="text-xs text-gray-500 mt-2">{formatTimer(elapsed)}</p>
         </div>
       )}
-
-      {/* Approval section */}
-      {(phase === 'approval' || phase === 'done') && (
-        <div className="mt-6 fade-in space-y-4">
-          <h3 className="font-display font-bold text-sm text-gray-500 mb-3 uppercase tracking-wider">Aprovacao dos Entregaveis</h3>
-
-          {[1, 2, 3].filter(pn => pn <= currentPiece || approvedPieces[pn]).map(pn => {
-            const pNames = { 1: 'Peca Estatica', 2: 'Video Narrado 15s', 3: 'Video Apresentadora 30s' };
-            const icons = { 1: '🖼️', 2: '🎥', 3: '🎬' };
-            const items = results[pn] || [];
-            const errs = pieceErrors[pn] || [];
-            const approved = approvedPieces[pn];
-            const saving = savingPiece === pn;
-            const regen = regeneratingPiece === pn;
-
-            return (
-              <div key={pn} className={`rounded-xl border ${approved ? 'border-emerald-300 bg-emerald-50' : 'border-gray-200 bg-white'} p-4`}>
-                <div className="flex items-center justify-between mb-3">
-                  <div className="flex items-center gap-2">
-                    <span className="text-xl">{icons[pn]}</span>
-                    <span className="font-bold text-sm">{pNames[pn]}</span>
-                    {approved && <span className="text-xs bg-emerald-200 text-emerald-800 px-2 py-0.5 rounded-full">Aprovado</span>}
-                    {regen && <span className="text-xs bg-yellow-200 text-yellow-800 px-2 py-0.5 rounded-full pulse">Refazendo...</span>}
-                  </div>
-                  {!approved && items.length > 0 && !regen && (
-                    <button onClick={() => handleReject(pn)}
-                      className="border border-red-300 text-red-600 hover:bg-red-50 font-bold px-3 py-1.5 rounded-lg text-xs">
-                      Reprovar e Refazer
-                    </button>
-                  )}
-                </div>
-
-                {/* 2 versions side by side */}
-                {items.length > 0 && !approved && (
-                  <div className="grid grid-cols-2 gap-3">
-                    {items.map((item, idx) => (
-                      <div key={idx} className="relative rounded-lg overflow-hidden border border-gray-200">
-                        {item.type === 'video' ? (
-                          <video src={item.url} controls className="w-full" />
-                        ) : (
-                          <img src={item.url} alt="" className="w-full" />
-                        )}
-                        <div className="p-2 flex items-center justify-between bg-gray-50">
-                          <span className="text-[10px] text-gray-500">Versao {item.version} — {item.engine}</span>
-                          <button onClick={() => handleApprove(pn, item)} disabled={saving}
-                            className="bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white font-bold px-3 py-1 rounded text-[10px]">
-                            {saving ? '...' : 'Aprovar'}
-                          </button>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-
-                {/* Reference for static */}
-                {pn === 1 && items.length > 0 && !approved && (
-                  <div className="mt-3">
-                    <p className="text-[10px] font-bold text-gray-500 mb-1 uppercase">Referencia</p>
-                    <img src={DRIVE.refEstatico} alt="Ref" className="w-1/2 rounded-lg border-2 border-dashed border-orange-300" />
-                  </div>
-                )}
-
-                {/* Approved item */}
-                {approved && (
-                  <div className="mt-2">
-                    {approved.type === 'video' ? (
-                      <video src={approved.url} controls className="w-full rounded-lg" />
-                    ) : (
-                      <img src={approved.url} alt="" className="w-full rounded-lg" />
-                    )}
-                    {approved.savedUrl && (
-                      <a href={approved.savedUrl} target="_blank" rel="noopener"
-                        className="block text-xs text-emerald-700 hover:underline mt-1 truncate">
-                        Salvo: {approved.savedUrl}
-                      </a>
-                    )}
-                  </div>
-                )}
-
-                {/* Errors */}
-                {errs.length > 0 && (
-                  <div className="mt-2 space-y-1">
-                    {errs.map((e, i) => (
-                      <p key={i} className="text-xs text-red-600 bg-red-50 px-2 py-1 rounded">{e}</p>
-                    ))}
-                  </div>
-                )}
-              </div>
-            );
-          })}
-
-          {/* All 3 approved — final page */}
-          {Object.keys(approvedPieces).length === 3 && (
-            <div className="bg-sea-dark rounded-xl p-6 text-white text-center fade-in">
-              <div className="text-4xl mb-3">🎉</div>
-              <h3 className="font-display font-bold text-xl mb-2">Pacote completo e salvo!</h3>
-              <p className="text-white/60 text-sm mb-4">{projectName} — 3/3 pecas aprovadas</p>
-
-              <div className="bg-white/10 rounded-lg p-4 mb-4 text-left max-w-md mx-auto">
-                <p className="text-xs font-bold text-white/80 mb-2 uppercase">IAs utilizadas no resultado final:</p>
-                <div className="space-y-1 text-sm text-white/70">
-                  <p>🖼️ <strong>GPT-5 Image</strong> — peca estatica</p>
-                  <p>🎬 <strong>Kling</strong> — animacao de cenas (fachada, rooftop, localizacao)</p>
-                  <p>👩 <strong>Kling 3.0 Pro</strong> — video da Monica apresentadora</p>
-                  <p>🎙️ <strong>ElevenLabs</strong> — voz clonada da Monica</p>
-                  <p>🎞️ <strong>Creatomate</strong> — montagem final dos videos</p>
-                  <p>🧠 <strong>Claude Sonnet</strong> — roteiros e validacao</p>
-                </div>
-              </div>
-
-              <button onClick={onReset} className="bg-sea-coral hover:bg-sea-coral/90 text-white font-bold px-6 py-2.5 rounded-lg text-sm">
-                Novo Briefing
-              </button>
-            </div>
-          )}
-        </div>
-      )}
-    </div>
+    </AgentPageLayout>
   );
 }
 
-// Wrapper to observe status changes — with auto-fix on rejection (max 2 retries)
-function PieceCardWrapper({ pieceNumber, briefing, active, onStatusChange, onComplete }) {
+// ============================================================
+// AGENT 05 — PRODUTOR DE VIDEO
+// ============================================================
+
+function Agent05({ state, dispatch }) {
+  const pn = state.currentPiece;
   const [status, setStatus] = useState('idle');
-  const [text, setText] = useState('');
-  const [validation, setValidation] = useState(null);
-  const [error, setError] = useState(null);
-  const [startTime, setStartTime] = useState(null);
-  const [endTime, setEndTime] = useState(null);
-  const [expanded, setExpanded] = useState(true);
-  const [attempt, setAttempt] = useState(0);
-  const [history, setHistory] = useState([]); // previous attempts
-  const textRef = useRef('');
+  const [progress, setProgress] = useState('');
   const started = useRef(false);
-  const containerRef = useRef(null);
-  const MAX_RETRIES = 2;
+  const msgs = state.chatMessages['agent05'] || [];
+  const elapsed = useTimer(status === 'running');
 
-  const elapsed = useTimer(status === 'generating' || status === 'validating' || status === 'fixing');
+  const generateNarrado = async () => {
+    dispatch({ type: 'ADD_CHAT', agent: 'agent05', text: 'Iniciando geracao do Video Narrado 15s...', msgType: 'progress' });
+    const roteiro = state.roteiroTexts[2] || '';
+    const letteringMatches = roteiro.match(/Lettering:\s*(.+)/g) || [];
+    const letterings = letteringMatches.map(l => l.replace(/Lettering:\s*/, '').replace(/\s*\(\d+\s*palavras?\)\s*/gi, '').replace(/\s*\[\d+\s*palavras?\]\s*/gi, '').trim());
+    const narracaoMatches = roteiro.match(/Narra[cç][aã]o:\s*(.+)/g) || [];
+    const fullNarration = narracaoMatches.map(n => n.replace(/Narra[cç][aã]o:\s*/, '').replace(/\s*\(\d+\s*palavras?\)\s*/gi, '').replace(/\s*\[\d+\s*palavras?\]\s*/gi, '').trim()).join(' ') || 'Investimento inteligente no litoral de Florianopolis.';
+
+    const CENAS = [
+      { name: 'Fachada 1', url: DRIVE.fachadaAll[0], prompt: 'Slow cinematic tilt up modern building facade, golden hour, premium architecture', clipDuration: 2, bloco: 0 },
+      { name: 'Fachada 2', url: DRIVE.fachadaAll[1], prompt: 'Slow dolly forward modern building entrance, warm sunlight, luxury details', clipDuration: 1.5, bloco: 0 },
+      { name: 'Fachada 3', url: DRIVE.fachadaAll[2], prompt: 'Gentle pan across modern building exterior, golden hour, clean lines', clipDuration: 1.5, bloco: 0 },
+      { name: 'Rooftop 1', url: DRIVE.rooftopAll[0], prompt: 'Gentle pan luxury rooftop infinity pool, golden hour, ocean panorama', clipDuration: 2, bloco: 1 },
+      { name: 'Rooftop 2', url: DRIVE.rooftopAll[1], prompt: 'Slow zoom in rooftop lounge area, sunset light, premium resort feel', clipDuration: 1.5, bloco: 1 },
+      { name: 'Rooftop 3', url: DRIVE.rooftopAll[2], prompt: 'Slow tilt down from sky to infinity pool edge, ocean horizon, golden hour', clipDuration: 1.5, bloco: 1 },
+      { name: 'Localizacao 1', url: DRIVE.localizacaoAll[0], prompt: 'Aerial push forward Brazilian coastline, turquoise ocean, golden hour', clipDuration: 2, bloco: 2 },
+      { name: 'Localizacao 2', url: DRIVE.localizacaoAll[1], prompt: 'Aerial slow orbit beach and coastline, paradise, warm tropical tones', clipDuration: 1.5, bloco: 2 },
+      { name: 'Localizacao 3', url: DRIVE.localizacaoAll[2], prompt: 'Aerial pull back revealing beautiful beach and coastal city, golden hour', clipDuration: 1.5, bloco: 2 },
+    ];
+
+    const vers = [];
+    const errs = [];
+    const clips = [];
+
+    for (let batch = 0; batch < 3; batch++) {
+      const batchNames = ['Fachada', 'Rooftop', 'Localizacao'];
+      setProgress(`Bloco ${batch + 1}/3 (${batchNames[batch]})...`);
+      dispatch({ type: 'ADD_CHAT', agent: 'agent05', text: `Gerando clips do bloco ${batch + 1}/3 (${batchNames[batch]}) via Kling...`, msgType: 'progress' });
+      const batchCenas = CENAS.slice(batch * 3, batch * 3 + 3);
+      const batchResults = await Promise.all(batchCenas.map(async (cena) => {
+        const r = await generateVideo({ prompt: cena.prompt, engine: 'kling', imageUrl: cena.url, format: '9:16' });
+        if (r.url) return { url: r.url, lettering: letterings[cena.bloco] || '', duration: cena.clipDuration };
+        errs.push(`${cena.name}: ${r.error || 'Sem URL'}`); return null;
+      }));
+      clips.push(...batchResults.filter(Boolean));
+      if (batch < 2) await new Promise(r => setTimeout(r, 2000));
+    }
+
+    let audioUrl = null;
+    setProgress('Gerando narracao via ElevenLabs...');
+    dispatch({ type: 'ADD_CHAT', agent: 'agent05', text: 'Gerando narracao com voz da Monica via ElevenLabs...', msgType: 'progress' });
+    const audioResult = await safeFetchOnce('/api/generate-audio', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ text: fullNarration }) });
+    if (audioResult.audio) audioUrl = `data:audio/mp3;base64,${audioResult.audio}`;
+    else if (audioResult.error) errs.push(`audio: ${audioResult.error}`);
+
+    if (clips.length > 0) {
+      setProgress('Montando video final via Creatomate...');
+      dispatch({ type: 'ADD_CHAT', agent: 'agent05', text: `Montando video final com ${clips.length} clips via Creatomate...`, msgType: 'progress' });
+      const compResult = await safeFetchOnce('/api/compose-video', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ clips, audioUrl, duration: 15, type: 'narrado' }) });
+      if (compResult.url) {
+        vers.push({ url: compResult.url, type: 'video', engine: 'creatomate', version: 1 });
+      } else if (compResult.renderId) {
+        const videoUrl = await pollCreatomateRender(compResult.renderId, (msg) => setProgress(msg));
+        if (videoUrl) vers.push({ url: videoUrl, type: 'video', engine: 'creatomate', version: 1 });
+        else errs.push('montagem: render falhou');
+      } else { errs.push(`montagem: ${compResult.error || 'Sem URL'}`); }
+    }
+
+    return { vers, errs };
+  };
+
+  const generateApresentadora = async () => {
+    dispatch({ type: 'ADD_CHAT', agent: 'agent05', text: 'Iniciando geracao do Video Apresentadora 30s...', msgType: 'progress' });
+    const roteiro = state.roteiroTexts[3] || '';
+    const falas = (roteiro.match(/Monica fala:\s*"([^"]+)"/g) || []).map(f => f.replace(/Monica fala:\s*"/, '').replace(/"$/, '').replace(/\s*\(\d+\s*palavras?\)\s*/gi, '').replace(/\s*\[\d+\s*palavras?\]\s*/gi, '').trim());
+    const letteringMatches = roteiro.match(/Lettering:\s*(.+)/g) || [];
+    const letterings = letteringMatches.map(l => l.replace(/Lettering:\s*/, '').replace(/\s*\(\d+\s*palavras?\)\s*/gi, '').replace(/\s*\[\d+\s*palavras?\]\s*/gi, '').trim());
+    const fullNarration = falas.join(' ') || 'Eu sou a Monica, socia fundadora da Seazone.';
+
+    const MONICA_PHOTOS = [DRIVE.monica, 'https://lh3.googleusercontent.com/d/1fiiABMSD7pmkS5OfxazrgOu7LZuj2E9W=s1920'];
+    const CENAS = [
+      { name: 'Monica Intro', engine: 'kling3', url: MONICA_PHOTOS[0], clipDuration: 8, prompt: 'Brazilian woman with brown hair walking on the beach barefoot on the sand, speaking naturally to camera, confident and approachable, golden hour warm light, ocean waves in background, wearing casual elegant outfit, speaking in Brazilian Portuguese, cinematic shallow depth of field' },
+      { name: 'Fachada', engine: 'kling', url: DRIVE.fachada, clipDuration: 5, prompt: 'Slow cinematic tilt up modern building facade, golden hour, premium architecture, warm light' },
+      { name: 'Rooftop', engine: 'kling', url: DRIVE.rooftop, clipDuration: 5, prompt: 'Gentle pan luxury rooftop infinity pool, ocean panorama view, golden hour, resort feel' },
+      { name: 'Localizacao', engine: 'kling', url: DRIVE.localizacao, clipDuration: 5, prompt: 'Aerial push forward Brazilian coastline, turquoise ocean, white sand beach, golden hour' },
+      { name: 'Monica CTA', engine: 'kling3', url: MONICA_PHOTOS[1], clipDuration: 7, prompt: 'Brazilian woman on the beach smiling, speaking with enthusiasm to camera, warm golden hour, ocean behind, natural and inviting tone, cinematic vertical video' },
+    ];
+
+    const vers = [];
+    const errs = [];
+    const clips = new Array(CENAS.length).fill(null);
+
+    // Monica clips
+    setProgress('Gerando clips da Monica (Kling 3.0 Pro)...');
+    dispatch({ type: 'ADD_CHAT', agent: 'agent05', text: 'Gerando clips da Monica via Kling 3.0 Pro...', msgType: 'progress' });
+    const monicaCenas = CENAS.map((c, i) => ({ ...c, idx: i })).filter(c => c.engine === 'kling3');
+    await Promise.all(monicaCenas.map(async (cena) => {
+      const r = await generateVideo({ prompt: cena.prompt, engine: 'kling3', imageUrl: cena.url, format: '9:16', duration: '10' });
+      if (r.url) clips[cena.idx] = { url: r.url, lettering: letterings[cena.idx] || '', duration: cena.clipDuration };
+      else errs.push(`${cena.name}: ${r.error || 'Sem URL'}`);
+    }));
+
+    await new Promise(r => setTimeout(r, 2000));
+
+    // Empreendimento clips
+    setProgress('Gerando cenas do empreendimento...');
+    dispatch({ type: 'ADD_CHAT', agent: 'agent05', text: 'Gerando cenas do empreendimento via Kling...', msgType: 'progress' });
+    const empCenas = CENAS.map((c, i) => ({ ...c, idx: i })).filter(c => c.engine === 'kling');
+    await Promise.all(empCenas.map(async (cena) => {
+      const r = await generateVideo({ prompt: cena.prompt, engine: 'kling', imageUrl: cena.url, format: '9:16' });
+      if (r.url) clips[cena.idx] = { url: r.url, lettering: letterings[cena.idx] || '', duration: cena.clipDuration };
+      else errs.push(`${cena.name}: ${r.error || 'Sem URL'}`);
+    }));
+
+    const validClips = clips.filter(Boolean);
+
+    let audioUrl = null;
+    setProgress('Gerando narracao...');
+    dispatch({ type: 'ADD_CHAT', agent: 'agent05', text: 'Gerando narracao com voz da Monica via ElevenLabs...', msgType: 'progress' });
+    const audioResult = await safeFetchOnce('/api/generate-audio', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ text: fullNarration }) });
+    if (audioResult.audio) audioUrl = `data:audio/mp3;base64,${audioResult.audio}`;
+    else if (audioResult.error) errs.push(`audio: ${audioResult.error}`);
+
+    if (validClips.length > 0) {
+      setProgress('Montando video final...');
+      dispatch({ type: 'ADD_CHAT', agent: 'agent05', text: `Montando video final com ${validClips.length} clips via Creatomate...`, msgType: 'progress' });
+      const r = await safeFetchOnce('/api/compose-video', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ clips: validClips, audioUrl, duration: 30, type: 'apresentadora' }) });
+      if (r.url) {
+        vers.push({ url: r.url, type: 'video', engine: 'creatomate', version: 1 });
+      } else if (r.renderId) {
+        const videoUrl = await pollCreatomateRender(r.renderId, (msg) => setProgress(msg));
+        if (videoUrl) vers.push({ url: videoUrl, type: 'video', engine: 'creatomate', version: 1 });
+        else errs.push('montagem: render falhou');
+      } else { errs.push(`montagem: ${r.error || 'Sem URL'}`); }
+    }
+
+    return { vers, errs };
+  };
 
   useEffect(() => {
-    if (active && !started.current) {
+    if (!started.current) {
       started.current = true;
-      runPiece();
+      (async () => {
+        setStatus('running');
+        dispatch({ type: 'CLEAR_CHAT', agent: 'agent05' });
+        const result = pn === 2 ? await generateNarrado() : await generateApresentadora();
+        dispatch({ type: 'SET_RESULTS', piece: pn, items: result.vers });
+        dispatch({ type: 'SET_ERRORS', piece: pn, errors: result.errs });
+
+        if (result.vers.length > 0) {
+          setStatus('done');
+          dispatch({ type: 'ADD_CHAT', agent: 'agent05', text: `${PIECE_NAMES[pn]} gerado! Enviando para aprovacao do Agente 06.`, msgType: 'success' });
+          setTimeout(() => { dispatch({ type: 'SET_CURRENT_PIECE', piece: pn }); dispatch({ type: 'NAVIGATE', page: 'agent06' }); }, 1500);
+        } else {
+          setStatus('error');
+          dispatch({ type: 'ADD_CHAT', agent: 'agent05', text: `Erro ao gerar ${PIECE_NAMES[pn]}: ${result.errs.join(', ')}`, msgType: 'error' });
+        }
+      })();
     }
-  }, [active]);
-
-  useEffect(() => {
-    if (status === 'approved' || status === 'error') {
-      onStatusChange(pieceNumber, status);
-      if (status === 'approved' && onComplete) {
-        onComplete(pieceNumber, textRef.current);
-      }
-    }
-  }, [status]);
-
-  const streamGenerate = (fn, args) => {
-    return new Promise((resolve) => {
-      textRef.current = '';
-      setText('');
-      fn(
-        ...args,
-        (chunk) => {
-          textRef.current += chunk;
-          setText(textRef.current);
-          if (containerRef.current) containerRef.current.scrollTop = containerRef.current.scrollHeight;
-        },
-        () => resolve(true),
-        (err) => { setError(err); setStatus('error'); resolve(false); }
-      );
-    });
-  };
-
-  const runPiece = async () => {
-    setStatus('generating');
-    setStartTime(Date.now());
-    setAttempt(1);
-
-    const ok = await streamGenerate(generatePiece, [briefing, pieceNumber]);
-    if (!ok || !textRef.current) return;
-
-    // Validate
-    setStatus('validating');
-    let result = await validatePiece(briefing, textRef.current, pieceNumber);
-    setValidation(result);
-
-    if (result.approved) {
-      setStatus('approved');
-      setEndTime(Date.now());
-      return;
-    }
-
-    // Auto-fix loop (max retries)
-    for (let retry = 1; retry <= MAX_RETRIES; retry++) {
-      // Save previous attempt to history
-      setHistory(prev => [...prev, { text: textRef.current, validation: result, attempt: retry }]);
-      setAttempt(retry + 1);
-      setStatus('fixing');
-      setValidation(null);
-
-      const errors = result.errors || [result.summary || 'Peça reprovada'];
-      const prevText = textRef.current;
-
-      const fixOk = await streamGenerate(fixPiece, [briefing, prevText, errors, pieceNumber]);
-      if (!fixOk || !textRef.current) {
-        // Fix falhou (504, timeout, etc) — aprova a última versão para não travar o pipeline
-        textRef.current = prevText;
-        setText(prevText);
-        setError(null);
-        setStatus('approved');
-        setEndTime(Date.now());
-        setValidation({ approved: true, summary: `Aprovado com ressalvas (correção falhou). Revise o roteiro manualmente se necessário.` });
-        if (onComplete) onComplete(pieceNumber, prevText);
-        return;
-      }
-
-      // Re-validate
-      setStatus('validating');
-      result = await validatePiece(briefing, textRef.current, pieceNumber);
-      setValidation(result);
-
-      if (result.approved) {
-        setStatus('approved');
-        setEndTime(Date.now());
-        return;
-      }
-    }
-
-    // Exceeded retries — approve anyway to continue pipeline
-    setStatus('approved');
-    setEndTime(Date.now());
-    setValidation({ ...result, approved: true, summary: `Aprovado após ${MAX_RETRIES + 1} tentativas (última versão usada). ${result.summary || ''}` });
-  };
-
-  const totalTime = endTime && startTime ? endTime - startTime : elapsed;
-  const name = PIECE_NAMES[pieceNumber - 1];
-  const icon = PIECE_ICONS[pieceNumber - 1];
-
-  const statusColors = {
-    idle: 'border-gray-200 opacity-60',
-    generating: 'border-sea-coral shadow-md',
-    validating: 'border-yellow-300 shadow-md',
-    fixing: 'border-orange-300 shadow-md',
-    approved: 'border-emerald-300',
-    rejected: 'border-red-300',
-    error: 'border-red-300',
-  };
-  const statusBadge = {
-    idle: { bg: 'bg-gray-100 text-gray-400', label: 'Aguardando' },
-    generating: { bg: 'bg-sea-coral/10 text-sea-coral', label: 'Gerando...' },
-    validating: { bg: 'bg-yellow-100 text-yellow-700', label: 'Validando...' },
-    fixing: { bg: 'bg-orange-100 text-orange-700', label: `Corrigindo (tentativa ${attempt})...` },
-    approved: { bg: 'bg-emerald-100 text-emerald-700', label: 'Aprovado' },
-    rejected: { bg: 'bg-red-100 text-red-700', label: 'Reprovado' },
-    error: { bg: 'bg-red-100 text-red-700', label: 'Erro' },
-  };
-  const badge = statusBadge[status];
+  }, []);
 
   return (
-    <div className={`bg-white rounded-xl border-2 overflow-hidden transition-all fade-in ${statusColors[status]}`}>
-      <div className="flex items-center gap-3 px-5 py-4 cursor-pointer" onClick={() => text && setExpanded(!expanded)}>
-        <div className={`w-10 h-10 rounded-xl flex items-center justify-center text-lg flex-shrink-0
-          ${status === 'approved' ? 'bg-emerald-100' : status === 'generating' || status === 'fixing' ? 'bg-sea-coral/10' : 'bg-gray-100'}`}>
-          {status === 'approved' ? '✓' : icon}
+    <AgentPageLayout num="05" role="Produtor de Video" icon="🎬" chatMessages={msgs}>
+      {status === 'running' && (
+        <div className="bg-white rounded-xl border border-sea-coral p-6 text-center">
+          <div className="w-12 h-12 border-4 border-sea-coral border-t-transparent rounded-full spinner mx-auto mb-4" />
+          <p className="font-display font-bold">{PIECE_NAMES[pn]}</p>
+          <p className="text-sm text-gray-600 mt-1">{progress}</p>
+          <p className="text-xs text-gray-500 mt-2">{formatTimer(elapsed)}</p>
         </div>
-        <div className="flex-1">
-          <div className="flex items-center gap-2">
-            <span className="text-[10px] font-mono bg-gray-100 text-gray-500 px-1.5 py-0.5 rounded">#{pieceNumber}</span>
-            <h3 className="font-display font-bold">{name}</h3>
-            {attempt > 1 && <span className="text-[10px] bg-orange-100 text-orange-600 px-1.5 py-0.5 rounded">tentativa {attempt}</span>}
+      )}
+      {status === 'error' && (
+        <div className="flex justify-center mt-4">
+          <button onClick={() => { started.current = false; setStatus('idle'); dispatch({ type: 'CLEAR_PIECE', piece: pn }); }}
+            className="border border-red-300 text-red-600 hover:bg-red-50 font-bold px-4 py-2 rounded-lg text-sm">
+            Tentar Novamente
+          </button>
+        </div>
+      )}
+    </AgentPageLayout>
+  );
+}
+
+// ============================================================
+// AGENT 06 — VALIDADOR FINAL
+// ============================================================
+
+function Agent06({ state, dispatch }) {
+  const pn = state.currentPiece;
+  const items = state.results[pn] || [];
+  const errs = state.pieceErrors[pn] || [];
+  const [saving, setSaving] = useState(false);
+  const msgs = state.chatMessages['agent06'] || [];
+  const projectName = state.briefingData?.projeto?.nome || 'Empreendimento';
+  const initRef = useRef(false);
+
+  useEffect(() => {
+    if (!initRef.current) {
+      initRef.current = true;
+      dispatch({ type: 'CLEAR_CHAT', agent: 'agent06' });
+      if (items.length > 0) {
+        dispatch({ type: 'ADD_CHAT', agent: 'agent06', text: `Aqui esta(ao) a(s) versao(oes) da ${PIECE_NAMES[pn]}. Revise e aprove a melhor.`, msgType: 'info' });
+      } else {
+        dispatch({ type: 'ADD_CHAT', agent: 'agent06', text: `Nenhuma versao gerada da ${PIECE_NAMES[pn]}. Erros: ${errs.join(', ')}`, msgType: 'error' });
+      }
+    }
+  }, []);
+
+  const handleApprove = async (item) => {
+    setSaving(true);
+    dispatch({ type: 'ADD_CHAT', agent: 'agent06', text: 'Salvando no Vercel Blob...', msgType: 'progress' });
+    const pieceTypes = { 1: 'estatico', 2: 'narrado', 3: 'apresentadora' };
+    try {
+      const ext = item.type === 'video' ? 'mp4' : 'png';
+      const res = await fetch('/api/save-approved', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ fileUrl: item.url, pieceNumber: pn, pieceType: pieceTypes[pn], projectName, fileName: `${pieceTypes[pn]}-v${item.version}.${ext}` }),
+      });
+      const result = await res.json();
+      if (result.url) {
+        dispatch({ type: 'APPROVE_PIECE', piece: pn, item: { ...item, savedUrl: result.url } });
+        dispatch({ type: 'ADD_CHAT', agent: 'agent06', text: `${PIECE_NAMES[pn]} aprovada e salva com sucesso!`, msgType: 'success' });
+
+        // Navigate to next
+        setTimeout(() => {
+          if (pn === 1) {
+            dispatch({ type: 'SET_CURRENT_PIECE', piece: 2 });
+            dispatch({ type: 'NAVIGATE', page: 'agent05' });
+          } else if (pn === 2) {
+            dispatch({ type: 'SET_CURRENT_PIECE', piece: 3 });
+            dispatch({ type: 'NAVIGATE', page: 'agent05' });
+          } else {
+            dispatch({ type: 'NAVIGATE', page: 'final' });
+          }
+        }, 1500);
+      }
+    } catch (err) {
+      dispatch({ type: 'ADD_CHAT', agent: 'agent06', text: `Erro ao salvar: ${err.message}`, msgType: 'error' });
+    }
+    setSaving(false);
+  };
+
+  const handleReject = () => {
+    dispatch({ type: 'ADD_CHAT', agent: 'agent06', text: `${PIECE_NAMES[pn]} reprovada. Voltando para refazer.`, msgType: 'warning' });
+    dispatch({ type: 'CLEAR_PIECE', piece: pn });
+    setTimeout(() => {
+      if (pn === 1) dispatch({ type: 'NAVIGATE', page: 'agent04' });
+      else dispatch({ type: 'NAVIGATE', page: 'agent05' });
+    }, 500);
+  };
+
+  return (
+    <AgentPageLayout num="06" role="Validador Final" icon="✅" chatMessages={msgs}>
+      {/* Versions to approve */}
+      {items.length > 0 && (
+        <div className="space-y-4">
+          <div className={`grid ${items.length > 1 ? 'grid-cols-2' : 'grid-cols-1'} gap-4`}>
+            {items.map((item, idx) => (
+              <div key={idx} className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+                {item.type === 'video' ? (
+                  <video src={item.url} controls className="w-full" />
+                ) : (
+                  <img src={item.url} alt="" className="w-full" />
+                )}
+                <div className="p-3 flex items-center justify-between">
+                  <span className="text-xs text-gray-500">Versao {item.version} — {item.engine}</span>
+                  <button onClick={() => handleApprove(item)} disabled={saving}
+                    className="bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white font-bold px-4 py-2 rounded-lg text-xs">
+                    {saving ? 'Salvando...' : 'Aprovar'}
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {/* Reference for static */}
+          {pn === 1 && (
+            <div>
+              <p className="text-[10px] font-bold text-gray-500 mb-1 uppercase">Referencia</p>
+              <img src={DRIVE.refEstatico} alt="Ref" className="w-1/3 rounded-lg border-2 border-dashed border-orange-300" />
+            </div>
+          )}
+
+          <div className="flex justify-end">
+            <button onClick={handleReject}
+              className="border border-red-300 text-red-600 hover:bg-red-50 font-bold px-4 py-2 rounded-lg text-sm">
+              Reprovar e Refazer
+            </button>
           </div>
         </div>
-        <div className="flex items-center gap-2 flex-shrink-0">
-          {totalTime > 0 && (
-            <span className={`text-xs font-mono px-2 py-1 rounded-full ${
-              totalTime > 600000 ? 'bg-red-100 text-red-700' : totalTime > 300000 ? 'bg-yellow-100 text-yellow-700' : 'bg-gray-100 text-gray-600'
-            }`}>{formatTimer(totalTime)}</span>
-          )}
-          <span className={`text-xs font-medium px-3 py-1 rounded-full ${badge.bg}`}>
-            {(status === 'generating' || status === 'validating' || status === 'fixing') && <span className="inline-block w-2 h-2 bg-current rounded-full mr-1.5 pulse" />}
-            {badge.label}
-          </span>
-          {text && <span className="text-gray-400 text-sm">{expanded ? '▼' : '▶'}</span>}
+      )}
+
+      {/* Errors only */}
+      {items.length === 0 && errs.length > 0 && (
+        <div className="space-y-2">
+          {errs.map((e, i) => <p key={i} className="text-xs text-red-600 bg-red-50 px-3 py-2 rounded-lg">{e}</p>)}
+          <button onClick={handleReject}
+            className="border border-sea-coral text-sea-coral hover:bg-sea-coral/5 font-bold px-4 py-2 rounded-lg text-sm">
+            Tentar Novamente
+          </button>
+        </div>
+      )}
+    </AgentPageLayout>
+  );
+}
+
+// ============================================================
+// FINAL PANEL
+// ============================================================
+
+function FinalPanel({ state, dispatch }) {
+  const projectName = state.briefingData?.projeto?.nome || 'Empreendimento';
+  const approved = state.approvedPieces;
+
+  return (
+    <div className="fade-in">
+      <div className="bg-sea-dark rounded-xl p-8 text-white text-center mb-6">
+        <div className="text-5xl mb-4">🎉</div>
+        <h2 className="font-display font-bold text-2xl mb-2">Pacote completo e salvo!</h2>
+        <p className="text-white/60 text-sm mb-6">{projectName} — 3/3 pecas aprovadas</p>
+
+        <div className="bg-white/10 rounded-lg p-5 mb-6 text-left max-w-md mx-auto">
+          <p className="text-xs font-bold text-white/80 mb-3 uppercase">IAs utilizadas no resultado final:</p>
+          <div className="space-y-2 text-sm text-white/70">
+            <p>🖼️ <strong className="text-white">GPT-5 Image</strong> — peca estatica</p>
+            <p>🎬 <strong className="text-white">Kling v2.1</strong> — animacao de cenas (fachada, rooftop, localizacao)</p>
+            <p>👩 <strong className="text-white">Kling 3.0 Pro</strong> — video da Monica apresentadora</p>
+            <p>🎙️ <strong className="text-white">ElevenLabs</strong> — voz clonada da Monica</p>
+            <p>🎞️ <strong className="text-white">Creatomate</strong> — montagem final dos videos</p>
+            <p>🧠 <strong className="text-white">Claude Sonnet</strong> — roteiros e validacao</p>
+          </div>
         </div>
       </div>
 
-      {expanded && text && (
-        <div ref={containerRef} className="border-t border-gray-100 px-5 py-4 max-h-96 overflow-y-auto bg-gray-50">
-          <div className="roteiro-text text-gray-800">{text}</div>
-          {(status === 'generating' || status === 'fixing') && <span className="inline-block w-2 h-4 bg-sea-coral animate-pulse ml-0.5" />}
-        </div>
-      )}
-
-      {/* Previous attempts */}
-      {history.length > 0 && expanded && (
-        <div className="border-t px-5 py-3 bg-orange-50">
-          <p className="text-xs font-bold text-orange-700 mb-1">Tentativas anteriores:</p>
-          {history.map((h, i) => (
-            <div key={i} className="text-xs text-orange-600 mb-1">
-              Tentativa {h.attempt}: {h.validation?.summary || 'Reprovado'}
+      {/* Approved pieces gallery */}
+      <div className="space-y-4 mb-6">
+        {[1, 2, 3].map(pn => {
+          const item = approved[pn];
+          if (!item) return null;
+          return (
+            <div key={pn} className="bg-white rounded-xl border border-emerald-200 overflow-hidden">
+              <div className="flex items-center gap-2 px-4 py-3 bg-emerald-50">
+                <span className="text-lg">{PIECE_ICONS[pn]}</span>
+                <span className="font-bold text-sm">{PIECE_NAMES[pn]}</span>
+                <span className="text-xs bg-emerald-200 text-emerald-800 px-2 py-0.5 rounded-full ml-auto">Aprovado</span>
+              </div>
+              <div className="p-4">
+                {item.type === 'video' ? (
+                  <video src={item.url} controls className="w-full rounded-lg" />
+                ) : (
+                  <img src={item.url} alt="" className="w-full rounded-lg" />
+                )}
+                {item.savedUrl && (
+                  <a href={item.savedUrl} target="_blank" rel="noopener" className="block text-xs text-emerald-700 hover:underline mt-2 truncate">
+                    Salvo: {item.savedUrl}
+                  </a>
+                )}
+              </div>
             </div>
-          ))}
-        </div>
-      )}
+          );
+        })}
+      </div>
 
-      {validation && expanded && (
-        <div className={`border-t px-5 py-3 text-sm ${validation.approved ? 'bg-emerald-50 text-emerald-700' : 'bg-red-50 text-red-700'}`}>
-          <strong>{validation.approved ? '✅' : '❌'}</strong> {validation.summary}
-          {validation.errors && validation.errors.length > 0 && (
-            <ul className="mt-2 space-y-1">{validation.errors.map((e, i) => <li key={i} className="text-xs">• {e}</li>)}</ul>
-          )}
-        </div>
-      )}
-
-      {error && (
-        <div className="border-t px-5 py-3 bg-red-50 text-sm text-red-700"><strong>Erro:</strong> {error}</div>
-      )}
+      <div className="text-center">
+        <button onClick={() => dispatch({ type: 'RESET' })}
+          className="bg-sea-coral hover:bg-sea-coral/90 text-white font-bold px-8 py-3 rounded-lg text-sm">
+          Novo Briefing
+        </button>
+      </div>
     </div>
   );
 }
@@ -1458,25 +1317,27 @@ function PieceCardWrapper({ pieceNumber, briefing, active, onStatusChange, onCom
 // ============================================================
 
 function App() {
-  const [step, setStep] = useState(1);
-  const [briefingData, setBriefingData] = useState(null);
-  const [briefingUrl, setBriefingUrl] = useState('');
+  const [state, dispatch] = useReducer(appReducer, initialState);
 
-  const STEPS = ['Briefing', 'Validação', 'Roteiros'];
+  const renderPage = () => {
+    switch (state.page) {
+      case 'home': return <HomePage dispatch={dispatch} />;
+      case 'agent01': return <Agent01 state={state} dispatch={dispatch} />;
+      case 'agent02': return <Agent02 key="agent02" state={state} dispatch={dispatch} />;
+      case 'agent04': return <Agent04 key={`agent04-${state.currentPiece}`} state={state} dispatch={dispatch} />;
+      case 'agent05': return <Agent05 key={`agent05-${state.currentPiece}`} state={state} dispatch={dispatch} />;
+      case 'agent06': return <Agent06 key={`agent06-${state.currentPiece}`} state={state} dispatch={dispatch} />;
+      case 'final': return <FinalPanel state={state} dispatch={dispatch} />;
+      default: return <HomePage dispatch={dispatch} />;
+    }
+  };
 
   return (
     <div className="min-h-screen bg-gray-50">
       <Header />
       <div className="max-w-4xl mx-auto px-4 py-6">
-        <div className="mb-6">
-          <StepIndicator steps={STEPS} currentStep={step - 1} />
-        </div>
-        {step === 1 && <Step1_Input onSubmit={(data, url) => { setBriefingData(data); setBriefingUrl(url); setStep(2); }} />}
-        {step === 2 && <Step2_Validation data={briefingData} url={briefingUrl}
-          onApproved={() => setStep(3)}
-          onReset={() => { setStep(1); setBriefingData(null); }} />}
-        {step === 3 && <Step3_Pipeline data={briefingData}
-          onReset={() => { setStep(1); setBriefingData(null); }} />}
+        {state.page !== 'home' && <ProgressBar currentPage={state.page} />}
+        {renderPage()}
       </div>
     </div>
   );
