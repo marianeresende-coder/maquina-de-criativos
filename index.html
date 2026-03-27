@@ -617,68 +617,45 @@ function Agent01({ state, dispatch }) {
 // ============================================================
 
 function Agent02({ state, dispatch }) {
-  const [pieces, setPieces] = useState({ 1: { status: 'idle', text: '', validation: null, attempt: 0 }, 2: { status: 'idle', text: '', validation: null, attempt: 0 }, 3: { status: 'idle', text: '', validation: null, attempt: 0 } });
+  const [pieces, setPieces] = useState({ 1: { status: 'idle', text: '', validation: null, attempt: 0, statusMsg: '' }, 2: { status: 'idle', text: '', validation: null, attempt: 0, statusMsg: '' }, 3: { status: 'idle', text: '', validation: null, attempt: 0, statusMsg: '' } });
   const [currentPiece, setCurrentPiece] = useState(0);
   const [allDone, setAllDone] = useState(false);
   const textRefs = useRef({ 1: '', 2: '', 3: '' });
   const started = useRef(false);
   const containerRefs = useRef({});
-  const msgs = state.chatMessages['agent02'] || [];
 
   const updatePiece = (num, updates) => setPieces(prev => ({ ...prev, [num]: { ...prev[num], ...updates } }));
-
-  const streamHelper = (fn, args) => {
-    return new Promise((resolve) => {
-      fn(...args,
-        (chunk) => {
-          const num = args[1] || args[3]; // pieceNumber
-          textRefs.current[num] = (textRefs.current[num] || '') + chunk;
-          updatePiece(num, { text: textRefs.current[num] });
-          if (containerRefs.current[num]) containerRefs.current[num].scrollTop = containerRefs.current[num].scrollHeight;
-        },
-        () => resolve(true),
-        (err) => { resolve(false); }
-      );
-    });
-  };
 
   const runSinglePiece = async (num) => {
     const MAX_RETRIES = 2;
     setCurrentPiece(num);
-    updatePiece(num, { status: 'generating', attempt: 1 });
+    updatePiece(num, { status: 'generating', attempt: 1, statusMsg: 'Escrevendo roteiro...' });
     textRefs.current[num] = '';
-    dispatch({ type: 'ADD_CHAT', agent: 'agent02', text: `Escrevendo roteiro da ${PIECE_NAMES[num]}...`, msgType: 'progress' });
 
     const ok = await new Promise((resolve) => {
       generatePieceStream(state.briefingData, num,
         (chunk) => { textRefs.current[num] += chunk; updatePiece(num, { text: textRefs.current[num] }); },
         () => resolve(true),
-        (err) => { updatePiece(num, { status: 'error', text: err }); resolve(false); }
+        (err) => { updatePiece(num, { status: 'error', text: err, statusMsg: 'Erro na geracao' }); resolve(false); }
       );
     });
 
-    if (!ok || !textRefs.current[num]) {
-      dispatch({ type: 'ADD_CHAT', agent: 'agent02', text: `Erro ao gerar roteiro da ${PIECE_NAMES[num]}.`, msgType: 'error' });
-      return false;
-    }
+    if (!ok || !textRefs.current[num]) return false;
 
-    // Validate (Agent 03)
-    updatePiece(num, { status: 'validating' });
-    dispatch({ type: 'ADD_CHAT', agent: 'agent02', text: `Agente 03 validando roteiro da ${PIECE_NAMES[num]}...`, msgType: 'info' });
+    // Validate
+    updatePiece(num, { status: 'validating', statusMsg: 'Validando roteiro...' });
     let result = await validatePiece(state.briefingData, textRefs.current[num], num);
     updatePiece(num, { validation: result });
 
     if (result.approved) {
-      updatePiece(num, { status: 'approved' });
+      updatePiece(num, { status: 'approved', statusMsg: 'Aprovado!' });
       dispatch({ type: 'SET_ROTEIRO', piece: num, text: textRefs.current[num] });
-      dispatch({ type: 'ADD_CHAT', agent: 'agent02', text: `Roteiro da ${PIECE_NAMES[num]} aprovado pelo Agente 03!`, msgType: 'success' });
       return true;
     }
 
     // Auto-fix loop
     for (let retry = 1; retry <= MAX_RETRIES; retry++) {
-      updatePiece(num, { status: 'fixing', attempt: retry + 1 });
-      dispatch({ type: 'ADD_CHAT', agent: 'agent02', text: `Agente 03 encontrou problemas. Corrigindo (tentativa ${retry + 1})...`, msgType: 'warning' });
+      updatePiece(num, { status: 'fixing', attempt: retry + 1, statusMsg: `Corrigindo (tentativa ${retry + 1})...` });
 
       const errors = result.errors || [result.summary || 'Peca reprovada'];
       const prevText = textRefs.current[num];
@@ -694,28 +671,25 @@ function Agent02({ state, dispatch }) {
 
       if (!fixOk || !textRefs.current[num]) {
         textRefs.current[num] = prevText;
-        updatePiece(num, { status: 'approved', text: prevText, validation: { approved: true, summary: 'Aprovado com ressalvas.' } });
+        updatePiece(num, { status: 'approved', text: prevText, validation: { approved: true, summary: 'Aprovado com ressalvas.' }, statusMsg: 'Aprovado com ressalvas' });
         dispatch({ type: 'SET_ROTEIRO', piece: num, text: prevText });
-        dispatch({ type: 'ADD_CHAT', agent: 'agent02', text: `Correcao falhou. Roteiro da ${PIECE_NAMES[num]} aprovado com ressalvas.`, msgType: 'warning' });
         return true;
       }
 
-      updatePiece(num, { status: 'validating' });
+      updatePiece(num, { status: 'validating', statusMsg: 'Revalidando...' });
       result = await validatePiece(state.briefingData, textRefs.current[num], num);
       updatePiece(num, { validation: result });
 
       if (result.approved) {
-        updatePiece(num, { status: 'approved' });
+        updatePiece(num, { status: 'approved', statusMsg: 'Aprovado!' });
         dispatch({ type: 'SET_ROTEIRO', piece: num, text: textRefs.current[num] });
-        dispatch({ type: 'ADD_CHAT', agent: 'agent02', text: `Roteiro da ${PIECE_NAMES[num]} aprovado pelo Agente 03!`, msgType: 'success' });
         return true;
       }
     }
 
     // Exceeded retries
-    updatePiece(num, { status: 'approved', validation: { ...result, approved: true, summary: `Aprovado apos ${MAX_RETRIES + 1} tentativas. ${result.summary || ''}` } });
+    updatePiece(num, { status: 'approved', validation: { ...result, approved: true, summary: `Aprovado apos ${MAX_RETRIES + 1} tentativas. ${result.summary || ''}` }, statusMsg: 'Aprovado apos correcoes' });
     dispatch({ type: 'SET_ROTEIRO', piece: num, text: textRefs.current[num] });
-    dispatch({ type: 'ADD_CHAT', agent: 'agent02', text: `Roteiro da ${PIECE_NAMES[num]} aprovado apos multiplas tentativas.`, msgType: 'warning' });
     return true;
   };
 
@@ -727,7 +701,6 @@ function Agent02({ state, dispatch }) {
           await runSinglePiece(num);
         }
         setAllDone(true);
-        dispatch({ type: 'ADD_CHAT', agent: 'agent02', text: 'Todos os 3 roteiros prontos! Pode seguir para a geracao de criativos.', msgType: 'success' });
       })();
     }
   }, []);
@@ -739,11 +712,11 @@ function Agent02({ state, dispatch }) {
     fixing: 'border-orange-300 shadow-md', approved: 'border-emerald-300', error: 'border-red-300',
   };
   const statusLabels = {
-    idle: 'Aguardando', generating: 'Gerando...', validating: 'Agente 03 validando...', fixing: 'Corrigindo...', approved: 'Aprovado', error: 'Erro',
+    idle: 'Aguardando', generating: 'Gerando...', validating: 'Validando...', fixing: 'Corrigindo...', approved: 'Aprovado', error: 'Erro',
   };
 
   return (
-    <AgentPageLayout num="02" role="Roteirista Criativo" icon="✍️" chatMessages={msgs}>
+    <AgentPageLayout num="02" role="Roteirista Criativo" icon="✍️" chatMessages={[]}>
       {!allDone && elapsed > 0 && (
         <div className="text-right mb-2">
           <span className="text-xs font-mono bg-gray-100 text-gray-600 px-2 py-1 rounded-full">{formatTimer(elapsed)}</span>
@@ -768,6 +741,9 @@ function Agent02({ state, dispatch }) {
                     <h3 className="font-display font-bold">{PIECE_NAMES[num]}</h3>
                     {p.attempt > 1 && <span className="text-[10px] bg-orange-100 text-orange-600 px-1.5 py-0.5 rounded">tentativa {p.attempt}</span>}
                   </div>
+                  {p.statusMsg && p.status !== 'idle' && p.status !== 'approved' && (
+                    <p className="text-xs text-gray-500 mt-1">{p.statusMsg}</p>
+                  )}
                 </div>
                 <span className={`text-xs font-medium px-3 py-1 rounded-full
                   ${p.status === 'approved' ? 'bg-emerald-100 text-emerald-700' :
@@ -795,6 +771,12 @@ function Agent02({ state, dispatch }) {
           );
         })}
       </div>
+
+      {allDone && (
+        <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-4 mb-4 text-center fade-in">
+          <p className="text-emerald-800 font-medium text-sm">Todos os 3 roteiros prontos!</p>
+        </div>
+      )}
 
       {allDone && (
         <div className="flex justify-end fade-in">
